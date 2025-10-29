@@ -1,0 +1,526 @@
+{
+  "timestamp": "2025-10-28T11:41:46.031482",
+  "summary": {
+    "total_tests": 13,
+    "passed_tests": 13,
+    "failed_tests": 0,
+    "success_rate": 100.0
+  },
+  "test_results": [
+    {
+      "test_name": "API Root endpoint",
+      "endpoint": "",
+      "method": "GET",
+      "expected_status": 200,
+      "actual_status": 200,
+      "success": true,
+      "response_data": {
+        "message": "Electronics Store API"
+      },
+      "error": null
+    },
+    {
+      "test_name": "Login with john_tech",
+      "endpoint": "auth/login",
+      "method": "POST",
+      "expected_status": 200,
+      "actual_status": 200,
+      "success": true,
+      "response_data": {
+        "user_id": "user-1",
+        "username": "john_tech",
+        "profile": {
+          "age_group": "26-35",
+          "interests": [
+            "laptops",
+            "gaming",
+            "photography"
+          ],
+          "budget_range": "high",
+          "preferred_brands": [
+            "Apple",
+            "Dell",
+            "Asus"
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "test_name": "Login with maria_smart",
+      "endpoint": "auth/login",
+      "method": "POST",
+      "expected_status": 200,
+      "actual_status": 200,
+      "success": true,
+      "response_data": {
+        "user_id": "user-2",
+        "username": "maria_smart",
+        "profile": {
+          "age_group": "18-25",
+          "interests": [
+            "smartphones",
+            "fitness",
+            "photography"
+          ],
+          "budget_range": "medium",
+          "preferred_brands": [
+            "Samsung",
+            "Google",
+            "Apple"
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "test_name": "Login with alex_gamer",
+      "endpoint": "auth/login",
+      "method": "POST",
+      "expected_status": 200,
+      "actual_status": 200,
+      "success": true,
+      "response_data": {
+        "user_id": "user-3",
+        "username": "alex_gamer",
+        "profile": {
+          "age_group": "18-25",
+          "interests": [
+            "gaming",
+            "laptops",
+            "audio"
+          ],
+          "budget_range": "high",
+          "preferred_brands": [
+            "Asus",
+            "Razer",
+            "Sony"
+          ]
+        }
+      },
+      "error": null
+    },
+    {
+      "test_name": "Login with invalid credentials",
+      "endpoint": "auth/login",
+      "method": "POST",
+      "expected_status": 401,
+      "actual_status": 401,
+      "success": true,
+      "response_data": {
+        "detail": "Invalid username or password"
+      },
+      "error": null
+    },
+    {
+      "test_name": "Get all products",
+      "endpoint": "products",
+      "method": "GET",
+      "expected_status": 200,
+      "actual_status": 200,
+      "success": true,
+      "response_data": [
+        {
+          "id": "prod-1",
+          "name": "MacBook Pro 16\"",
+          "category": "laptops",
+          "brand": "Apple",
+          "price": 2499.99,
+          "description": "Laptop profesional de \u00eenalt\u0103 performan\u021b\u0103 cu procesor M3 Pro",
+          "image_url": "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=500",
+          "specs": {
+            "processor": "Apple M3 Pro",
+            "ram": "32GB",
+            "storage": "1TB SSD",
+            "display": "16.2 inch Liquid Retina XDR"
+          }
+        },
+        {
+          "id": "prod-2",
+          "name": "iPhone 15 Pro Max",
+          "category": "smartphones",
+          "brand": "Apple",
+          "price": 1299.99,
+          "description": "Ultimul flagship iPhone cu camer\u0103 titanium \u0219i A17 Pro chip",
+          "image_url": "https://images.unsplash.com/photo-1592286927505-b0d6e7f6e5b3?w=500",
+          "specs": {
+            "processor": "A17 Pro",
+            "camera": "48MP Main + 12MP Ultra Wide",
+            "storage": "256GB",
+            "display": "6.7 inch Super Retina XDR"
+          }
+        },
+        {
+          "id": "prod-3",
+          "name": "Samsung Galaxy S24 Ultra",
+          "category": "smartphones",
+          "brand": "Samsung",
+          "price": 1199.99,
+          "description": "Smartphone premium cu S Pen \u0219i AI features",
+          "image_url": "https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=500",
+          "specs": {
+            "processor": "Snapdragon 8 Gen 3",
+            "camera": "200MP Main + 50MP Telephoto",
+            "storage": "512GB",
+            "display": "6.8 inch Dynamic AMOLED 2X"
+          }
+        },
+        {
+          "id": "prod-4",
+          "name": "Dell XPS 15",
+          "category": "laptops",
+          "brand": "Dell",
+          "price": 1799.99,
+          "description": "Laptop ultraperformant pentru creatori de con\u021binut",
+          "image_url": "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=500",
+          "specs": {
+            "processor": "Intel Core i9-13900H",
+            "ram": "32GB DDR5",
+            "storage": "1TB NVMe SSD",
+            "display": "15.6 inch OLED 4K"
+          }
+        },
+        {
+          "id": "prod-5",
+          "name": "Asus ROG Zephyrus G16",
+          "category": "gaming",
+          "brand": "Asus",
+          "price": 2299.99,
+          "description": "Laptop gaming de top cu RTX 4090",
+          "image_url": "https://images.unsplash.com/photo-1603481588273-2f908a9a7a1b?w=500",
+          "specs": {
+            "processor": "Intel Core i9-14900HX",
+            "gpu": "NVIDIA RTX 4090",
+            "ram": "32GB DDR5",
+            "storage": "2TB SSD"
+          }
+        },
+        {
+          "id": "prod-6",
+          "name": "Sony WH-1000XM5",
+          "category": "audio",
+          "brand": "Sony",
+          "price": 399.99,
+          "description": "C\u0103\u0219ti premium cu noise cancelling de top",
+          "image_url": "https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=500",
+          "specs": {
+            "type": "Over-ear",
+            "noise_cancelling": "Industry-leading ANC",
+            "battery": "30 hours",
+            "connectivity": "Bluetooth 5.2"
+          }
+        },
+        {
+          "id": "prod-7",
+          "name": "Apple Watch Series 9",
+          "category": "fitness",
+          "brand": "Apple",
+          "price": 429.99,
+          "description": "Smartwatch pentru s\u0103n\u0103tate \u0219i fitness",
+          "image_url": "https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=500",
+          "specs": {
+            "display": "Always-On Retina",
+            "features": "ECG, Blood Oxygen, Temperature",
+            "battery": "18 hours",
+            "water_resistance": "50m"
+          }
+        },
+        {
+          "id": "prod-8",
+          "name": "Google Pixel 8 Pro",
+          "category": "smartphones",
+          "brand": "Google",
+          "price": 999.99,
+          "description": "Smartphone cu cele mai bune fotografii AI",
+          "image_url": "https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=500",
+          "specs": {
+            "processor": "Google Tensor G3",
+            "camera": "50MP Main + AI Magic Eraser",
+            "storage": "256GB",
+            "display": "6.7 inch LTPO OLED"
+          }
+        },
+        {
+          "id": "prod-9",
+          "name": "iPad Pro 12.9\"",
+          "category": "tablets",
+          "brand": "Apple",
+          "price": 1099.99,
+          "description": "Tablet\u0103 premium pentru productivitate \u0219i creativitate",
+          "image_url": "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=500",
+          "specs": {
+            "processor": "Apple M2",
+            "display": "12.9 inch Liquid Retina XDR",
+            "storage": "512GB",
+            "features": "Apple Pencil & Magic Keyboard support"
+          }
+        },
+        {
+          "id": "prod-10",
+          "name": "Samsung Galaxy Watch 6",
+          "category": "fitness",
+          "brand": "Samsung",
+          "price": 349.99,
+          "description": "Smartwatch elegant cu monitorizare complet\u0103 a s\u0103n\u0103t\u0103\u021bii",
+          "image_url": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500",
+          "specs": {
+            "display": "1.5 inch Super AMOLED",
+            "features": "Heart Rate, Sleep, Body Composition",
+            "battery": "40 hours",
+            "water_resistance": "5ATM + IP68"
+          }
+        }
+      ],
+      "error": null
+    },
+    {
+      "test_name": "Get product by ID: prod-1",
+      "endpoint": "products/prod-1",
+      "method": "GET",
+      "expected_status": 200,
+      "actual_status": 200,
+      "success": true,
+      "response_data": {
+        "id": "prod-1",
+        "name": "MacBook Pro 16\"",
+        "category": "laptops",
+        "brand": "Apple",
+        "price": 2499.99,
+        "description": "Laptop profesional de \u00eenalt\u0103 performan\u021b\u0103 cu procesor M3 Pro",
+        "image_url": "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=500",
+        "specs": {
+          "processor": "Apple M3 Pro",
+          "ram": "32GB",
+          "storage": "1TB SSD",
+          "display": "16.2 inch Liquid Retina XDR"
+        }
+      },
+      "error": null
+    },
+    {
+      "test_name": "Get product by ID: prod-2",
+      "endpoint": "products/prod-2",
+      "method": "GET",
+      "expected_status": 200,
+      "actual_status": 200,
+      "success": true,
+      "response_data": {
+        "id": "prod-2",
+        "name": "iPhone 15 Pro Max",
+        "category": "smartphones",
+        "brand": "Apple",
+        "price": 1299.99,
+        "description": "Ultimul flagship iPhone cu camer\u0103 titanium \u0219i A17 Pro chip",
+        "image_url": "https://images.unsplash.com/photo-1592286927505-b0d6e7f6e5b3?w=500",
+        "specs": {
+          "processor": "A17 Pro",
+          "camera": "48MP Main + 12MP Ultra Wide",
+          "storage": "256GB",
+          "display": "6.7 inch Super Retina XDR"
+        }
+      },
+      "error": null
+    },
+    {
+      "test_name": "Get product with invalid ID",
+      "endpoint": "products/invalid-id-123",
+      "method": "GET",
+      "expected_status": 404,
+      "actual_status": 404,
+      "success": true,
+      "response_data": {
+        "detail": "Product not found"
+      },
+      "error": null
+    },
+    {
+      "test_name": "Get recommendations for user: user-1",
+      "endpoint": "recommendations/user-1",
+      "method": "GET",
+      "expected_status": 200,
+      "actual_status": 200,
+      "success": true,
+      "response_data": {
+        "products": [
+          {
+            "id": "prod-1",
+            "name": "MacBook Pro 16\"",
+            "category": "laptops",
+            "brand": "Apple",
+            "price": 2499.99,
+            "description": "Laptop profesional de \u00eenalt\u0103 performan\u021b\u0103 cu procesor M3 Pro",
+            "image_url": "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=500",
+            "specs": {
+              "processor": "Apple M3 Pro",
+              "ram": "32GB",
+              "storage": "1TB SSD",
+              "display": "16.2 inch Liquid Retina XDR"
+            }
+          },
+          {
+            "id": "prod-4",
+            "name": "Dell XPS 15",
+            "category": "laptops",
+            "brand": "Dell",
+            "price": 1799.99,
+            "description": "Laptop ultraperformant pentru creatori de con\u021binut",
+            "image_url": "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=500",
+            "specs": {
+              "processor": "Intel Core i9-13900H",
+              "ram": "32GB DDR5",
+              "storage": "1TB NVMe SSD",
+              "display": "15.6 inch OLED 4K"
+            }
+          },
+          {
+            "id": "prod-5",
+            "name": "Asus ROG Zephyrus G16",
+            "category": "gaming",
+            "brand": "Asus",
+            "price": 2299.99,
+            "description": "Laptop gaming de top cu RTX 4090",
+            "image_url": "https://images.unsplash.com/photo-1603481588273-2f908a9a7a1b?w=500",
+            "specs": {
+              "processor": "Intel Core i9-14900HX",
+              "gpu": "NVIDIA RTX 4090",
+              "ram": "32GB DDR5",
+              "storage": "2TB SSD"
+            }
+          }
+        ],
+        "reason": "Recomandate pe baza intereselor tale (laptops, gaming, photography), preferin\u021belor pentru branduri (Apple, Dell, Asus) \u0219i bugetului (high)"
+      },
+      "error": null
+    },
+    {
+      "test_name": "Get recommendations for user: user-2",
+      "endpoint": "recommendations/user-2",
+      "method": "GET",
+      "expected_status": 200,
+      "actual_status": 200,
+      "success": true,
+      "response_data": {
+        "products": [
+          {
+            "id": "prod-3",
+            "name": "Samsung Galaxy S24 Ultra",
+            "category": "smartphones",
+            "brand": "Samsung",
+            "price": 1199.99,
+            "description": "Smartphone premium cu S Pen \u0219i AI features",
+            "image_url": "https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=500",
+            "specs": {
+              "processor": "Snapdragon 8 Gen 3",
+              "camera": "200MP Main + 50MP Telephoto",
+              "storage": "512GB",
+              "display": "6.8 inch Dynamic AMOLED 2X"
+            }
+          },
+          {
+            "id": "prod-8",
+            "name": "Google Pixel 8 Pro",
+            "category": "smartphones",
+            "brand": "Google",
+            "price": 999.99,
+            "description": "Smartphone cu cele mai bune fotografii AI",
+            "image_url": "https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=500",
+            "specs": {
+              "processor": "Google Tensor G3",
+              "camera": "50MP Main + AI Magic Eraser",
+              "storage": "256GB",
+              "display": "6.7 inch LTPO OLED"
+            }
+          },
+          {
+            "id": "prod-7",
+            "name": "Apple Watch Series 9",
+            "category": "fitness",
+            "brand": "Apple",
+            "price": 429.99,
+            "description": "Smartwatch pentru s\u0103n\u0103tate \u0219i fitness",
+            "image_url": "https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=500",
+            "specs": {
+              "display": "Always-On Retina",
+              "features": "ECG, Blood Oxygen, Temperature",
+              "battery": "18 hours",
+              "water_resistance": "50m"
+            }
+          }
+        ],
+        "reason": "Recomandate pe baza intereselor tale (smartphones, fitness, photography), preferin\u021belor pentru branduri (Samsung, Google, Apple) \u0219i bugetului (medium)"
+      },
+      "error": null
+    },
+    {
+      "test_name": "Get recommendations for user: user-3",
+      "endpoint": "recommendations/user-3",
+      "method": "GET",
+      "expected_status": 200,
+      "actual_status": 200,
+      "success": true,
+      "response_data": {
+        "products": [
+          {
+            "id": "prod-5",
+            "name": "Asus ROG Zephyrus G16",
+            "category": "gaming",
+            "brand": "Asus",
+            "price": 2299.99,
+            "description": "Laptop gaming de top cu RTX 4090",
+            "image_url": "https://images.unsplash.com/photo-1603481588273-2f908a9a7a1b?w=500",
+            "specs": {
+              "processor": "Intel Core i9-14900HX",
+              "gpu": "NVIDIA RTX 4090",
+              "ram": "32GB DDR5",
+              "storage": "2TB SSD"
+            }
+          },
+          {
+            "id": "prod-1",
+            "name": "MacBook Pro 16\"",
+            "category": "laptops",
+            "brand": "Apple",
+            "price": 2499.99,
+            "description": "Laptop profesional de \u00eenalt\u0103 performan\u021b\u0103 cu procesor M3 Pro",
+            "image_url": "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=500",
+            "specs": {
+              "processor": "Apple M3 Pro",
+              "ram": "32GB",
+              "storage": "1TB SSD",
+              "display": "16.2 inch Liquid Retina XDR"
+            }
+          },
+          {
+            "id": "prod-4",
+            "name": "Dell XPS 15",
+            "category": "laptops",
+            "brand": "Dell",
+            "price": 1799.99,
+            "description": "Laptop ultraperformant pentru creatori de con\u021binut",
+            "image_url": "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=500",
+            "specs": {
+              "processor": "Intel Core i9-13900H",
+              "ram": "32GB DDR5",
+              "storage": "1TB NVMe SSD",
+              "display": "15.6 inch OLED 4K"
+            }
+          }
+        ],
+        "reason": "Recomandate pe baza intereselor tale (gaming, laptops, audio), preferin\u021belor pentru branduri (Asus, Razer, Sony) \u0219i bugetului (high)"
+      },
+      "error": null
+    },
+    {
+      "test_name": "Get recommendations for invalid user",
+      "endpoint": "recommendations/invalid-user-123",
+      "method": "GET",
+      "expected_status": 404,
+      "actual_status": 404,
+      "success": true,
+      "response_data": {
+        "detail": "User not found"
+      },
+      "error": null
+    }
+  ]
+}
