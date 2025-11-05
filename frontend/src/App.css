@@ -298,6 +298,10 @@ h1, h2, h3, h4, h5, h6 {
   max-width: 450px;
 }
 
+.cart-title {
+  color: #0ea5e9;
+}
+
 .cart-items {
   flex: 1;
   overflow-y: auto;
@@ -653,6 +657,7 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: 12px;
   overflow: hidden;
   background: rgba(15, 23, 42, 0.4);
+  align-self: start;
 }
 
 .detail-product-image {

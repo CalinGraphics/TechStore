@@ -31,6 +31,12 @@ if mongo_url and db_name:
 # Create the main app without a prefix
 app = FastAPI()
 
+
+@app.get("/")
+def home():
+    return {"message": "Hello World!"}
+
+
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
@@ -80,7 +86,7 @@ class Recommendation(BaseModel):
 HARDCODED_USERS = [
     {
         "id": "user-1",
-        "username": "john_tech",
+        "username": "Elvis_Marcu",
         "password": "pass123",
         "profile": {
             "age_group": "26-35",
@@ -91,7 +97,7 @@ HARDCODED_USERS = [
     },
     {
         "id": "user-2",
-        "username": "maria_smart",
+        "username": "robert_escrocul",
         "password": "pass123",
         "profile": {
             "age_group": "18-25",
@@ -102,7 +108,7 @@ HARDCODED_USERS = [
     },
     {
         "id": "user-3",
-        "username": "alex_gamer",
+        "username": "carastefania31",
         "password": "pass123",
         "profile": {
             "age_group": "18-25",
@@ -137,7 +143,7 @@ HARDCODED_PRODUCTS = [
         "brand": "Apple",
         "price": 1299.99,
         "description": "Ultimul flagship iPhone cu cameră titanium și A17 Pro chip",
-        "image_url": "https://images.unsplash.com/photo-1592286927505-b0d6e7f6e5b3?w=500",
+        "image_url": "https://s.yimg.com/ny/api/res/1.2/H66pNnkm00C22H089VH_Cw--/YXBwaWQ9aGlnaGxhbmRlcjt3PTI0MDA7aD0xNjAw/https://s.yimg.com/os/creatr-uploaded-images/2023-09/be674c30-56ee-11ee-b7fc-ab167c852b72",
         "specs": {
             "processor": "A17 Pro",
             "camera": "48MP Main + 12MP Ultra Wide",
@@ -353,6 +359,21 @@ async def get_recommendations(user_id: str):
     
     return Recommendation(products=top_products, reason=reason)
 
+
+@api_router.get("/debug/db")
+async def debug_db():
+    # Expose in-memory data for debugging; mask passwords
+    safe_users = []
+    for u in HARDCODED_USERS:
+        safe_user = {**u}
+        if "password" in safe_user:
+            safe_user["password"] = "******"
+        safe_users.append(safe_user)
+    return {
+        "mongo_connected": db is not None,
+        "users": safe_users,
+        "products": HARDCODED_PRODUCTS,
+    }
 
 @api_router.get("/")
 async def root():

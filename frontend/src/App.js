@@ -20,7 +20,7 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
 const API = `${BACKEND_URL}/api`;
 
 // Login Page
@@ -298,7 +298,7 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
               </SheetTrigger>
               <SheetContent className="cart-sheet" data-testid="cart-sheet">
                 <SheetHeader>
-                  <SheetTitle>Coșul tău</SheetTitle>
+                  <SheetTitle className="cart-title">Coșul tău</SheetTitle>
                   <SheetDescription>
                     {cart.length} produse în coș
                   </SheetDescription>
