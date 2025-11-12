@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
-import { ShoppingCart, User, LogOut, Zap, Laptop, Smartphone, Star, Trash2, Plus, Minus } from "lucide-react";
+import { ShoppingCart, User, LogOut, Zap, Laptop, Smartphone, Star, Trash2, Plus, Minus, Filter, Tag, Store, DollarSign } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -19,6 +19,13 @@ import {
   SheetTrigger,
   SheetFooter,
 } from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
 const API = `${BACKEND_URL}/api`;
@@ -177,6 +184,10 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
   const [loading, setLoading] = useState(true);
   const [recommendationReason, setRecommendationReason] = useState("");
   const [cartOpen, setCartOpen] = useState(false);
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterBrand, setFilterBrand] = useState("");
+  const [priceMin, setPriceMin] = useState("");
+  const [priceMax, setPriceMax] = useState("");
 
   useEffect(() => {
     fetchData();
@@ -191,7 +202,7 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
       setRecommendations(recResponse.data.products);
       setRecommendationReason(recResponse.data.reason);
       
-      // Fetch all products
+      // Initial fetch of products (no filters) so the page is not empty
       const productsResponse = await axios.get(`${API}/products`);
       setAllProducts(productsResponse.data);
     } catch (error) {
@@ -201,6 +212,27 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
       setLoading(false);
     }
   };
+
+  const fetchProducts = useCallback(async () => {
+    try {
+      const params = {
+        category: filterCategory || undefined,
+        brand: filterBrand || undefined,
+        price_min: priceMin !== "" ? Number(priceMin) : undefined,
+        price_max: priceMax !== "" ? Number(priceMax) : undefined,
+      };
+      const response = await axios.get(`${API}/products`, { params });
+      setAllProducts(response.data);
+    } catch (error) {
+      toast.error("Eroare la filtrarea produselor");
+      console.error("Filter fetch error:", error);
+    }
+  }, [filterCategory, filterBrand, priceMin, priceMax]);
+
+  useEffect(() => {
+    // Refetch products when filters change
+    fetchProducts();
+  }, [fetchProducts]);
 
   const handleProductClick = (productId) => {
     navigate(`/product/${productId}`);
@@ -418,6 +450,105 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
               <div className="section-header">
                 <h2 className="section-title">Toate Produsele</h2>
                 <p className="section-description">Explorează întreaga noastră colecție</p>
+              </div>
+              <div className="filters-panel" data-testid="filters-bar">
+                <div className="filters-header">
+                  <div className="filters-title">
+                    <Filter className="filters-icon" />
+                    <div>
+                      <h3>Filtrează produsele</h3>
+                      <p>Alege criteriile care te interesează și rafinează lista.</p>
+                    </div>
+                  </div>
+                  <div className="filters-actions">
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        setFilterCategory("");
+                        setFilterBrand("");
+                        setPriceMin("");
+                        setPriceMax("");
+                      }}
+                      data-testid="reset-filters"
+                    >
+                      Resetează
+                    </Button>
+                    <Button variant="outline" onClick={fetchProducts} data-testid="apply-filters">
+                      Aplică
+                    </Button>
+                  </div>
+                </div>
+                <div className="filters-grid">
+                  <div className="filter-field">
+                    <label htmlFor="category">Categorie</label>
+                    <div className="filter-input-wrapper">
+                      <Tag className="filter-field-icon" />
+                      <Select
+                        value={filterCategory || "all"}
+                        onValueChange={(value) =>
+                          setFilterCategory(value === "all" ? "" : value)
+                        }
+                      >
+                        <SelectTrigger className="filter-select-trigger" data-testid="filter-category">
+                          <SelectValue placeholder="Toate categoriile" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Toate</SelectItem>
+                          <SelectItem value="smartphones">Smartphones</SelectItem>
+                          <SelectItem value="laptops">Laptops</SelectItem>
+                          <SelectItem value="gaming">Gaming</SelectItem>
+                          <SelectItem value="audio">Audio</SelectItem>
+                          <SelectItem value="fitness">Fitness</SelectItem>
+                          <SelectItem value="tablets">Tablets</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="filter-field">
+                    <label htmlFor="brand">Brand</label>
+                    <div className="filter-input-wrapper">
+                      <Store className="filter-field-icon" />
+                      <Input
+                        id="brand"
+                        placeholder="ex: Apple, Samsung"
+                        value={filterBrand}
+                        onChange={(e) => setFilterBrand(e.target.value)}
+                        data-testid="filter-brand"
+                        className="filter-input"
+                      />
+                    </div>
+                  </div>
+                  <div className="filter-field">
+                    <label htmlFor="min-price">Preț minim</label>
+                    <div className="filter-input-wrapper">
+                      <DollarSign className="filter-field-icon" />
+                      <Input
+                        id="min-price"
+                        type="number"
+                        placeholder="Min"
+                        value={priceMin}
+                        onChange={(e) => setPriceMin(e.target.value)}
+                        data-testid="filter-price-min"
+                        className="filter-input"
+                      />
+                    </div>
+                  </div>
+                  <div className="filter-field">
+                    <label htmlFor="max-price">Preț maxim</label>
+                    <div className="filter-input-wrapper">
+                      <DollarSign className="filter-field-icon" />
+                      <Input
+                        id="max-price"
+                        type="number"
+                        placeholder="Max"
+                        value={priceMax}
+                        onChange={(e) => setPriceMax(e.target.value)}
+                        data-testid="filter-price-max"
+                        className="filter-input"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
               <div className="products-grid" data-testid="all-products-grid">
                 {allProducts.map((product) => (

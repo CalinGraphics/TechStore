@@ -6,7 +6,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Optional
+from typing import List, Optional, Dict
 import uuid
 from datetime import datetime, timezone
 
@@ -44,7 +44,7 @@ api_router = APIRouter(prefix="/api")
 # Define Models
 class UserProfile(BaseModel):
     age_group: str  # "18-25", "26-35", "36-50", "50+"
-    interests: List[str]  # ["laptops", "smartphones", "gaming", "photography", "fitness"]
+    interests: Dict[str, int]  # {"photo": 4, "gaming": 5, "laptops": 3, etc.}
     budget_range: str  # "low", "medium", "high"
     preferred_brands: List[str]  # ["Apple", "Samsung", "Dell", "HP", etc.]
 
@@ -76,6 +76,7 @@ class Product(BaseModel):
     description: str
     image_url: str
     specs: dict
+    labels: Dict[str, int] = Field(default_factory=dict)  # {"photos": 2, "gaming": 3, etc.}
 
 class Recommendation(BaseModel):
     products: List[Product]
@@ -90,7 +91,7 @@ HARDCODED_USERS = [
         "password": "pass123",
         "profile": {
             "age_group": "26-35",
-            "interests": ["laptops", "gaming", "photography"],
+            "interests": {"laptops": 5, "gaming": 4, "photo": 4, "photography": 3},
             "budget_range": "high",
             "preferred_brands": ["Apple", "Dell", "Asus"]
         }
@@ -101,7 +102,7 @@ HARDCODED_USERS = [
         "password": "pass123",
         "profile": {
             "age_group": "18-25",
-            "interests": ["smartphones", "fitness", "photography"],
+            "interests": {"smartphones": 5, "fitness": 4, "photo": 4, "photography": 3},
             "budget_range": "medium",
             "preferred_brands": ["Samsung", "Google", "Apple"]
         }
@@ -112,7 +113,7 @@ HARDCODED_USERS = [
         "password": "pass123",
         "profile": {
             "age_group": "18-25",
-            "interests": ["gaming", "laptops", "audio"],
+            "interests": {"gaming": 5, "laptops": 4, "audio": 4},
             "budget_range": "high",
             "preferred_brands": ["Asus", "Razer", "Sony"]
         }
@@ -134,7 +135,8 @@ HARDCODED_PRODUCTS = [
             "ram": "32GB",
             "storage": "1TB SSD",
             "display": "16.2 inch Liquid Retina XDR"
-        }
+        },
+        "labels": {"laptops": 5, "photo": 3, "photography": 2}
     },
     {
         "id": "prod-2",
@@ -149,7 +151,8 @@ HARDCODED_PRODUCTS = [
             "camera": "48MP Main + 12MP Ultra Wide",
             "storage": "256GB",
             "display": "6.7 inch Super Retina XDR"
-        }
+        },
+        "labels": {"smartphones": 5, "photo": 4, "photography": 3}
     },
     {
         "id": "prod-3",
@@ -164,7 +167,8 @@ HARDCODED_PRODUCTS = [
             "camera": "200MP Main + 50MP Telephoto",
             "storage": "512GB",
             "display": "6.8 inch Dynamic AMOLED 2X"
-        }
+        },
+        "labels": {"smartphones": 5, "photo": 5, "photography": 4}
     },
     {
         "id": "prod-4",
@@ -179,7 +183,8 @@ HARDCODED_PRODUCTS = [
             "ram": "32GB DDR5",
             "storage": "1TB NVMe SSD",
             "display": "15.6 inch OLED 4K"
-        }
+        },
+        "labels": {"laptops": 5, "photo": 4, "photography": 3}
     },
     {
         "id": "prod-5",
@@ -194,7 +199,8 @@ HARDCODED_PRODUCTS = [
             "gpu": "NVIDIA RTX 4090",
             "ram": "32GB DDR5",
             "storage": "2TB SSD"
-        }
+        },
+        "labels": {"gaming": 5, "laptops": 4}
     },
     {
         "id": "prod-6",
@@ -209,7 +215,8 @@ HARDCODED_PRODUCTS = [
             "noise_cancelling": "Industry-leading ANC",
             "battery": "30 hours",
             "connectivity": "Bluetooth 5.2"
-        }
+        },
+        "labels": {"audio": 5}
     },
     {
         "id": "prod-7",
@@ -224,7 +231,8 @@ HARDCODED_PRODUCTS = [
             "features": "ECG, Blood Oxygen, Temperature",
             "battery": "18 hours",
             "water_resistance": "50m"
-        }
+        },
+        "labels": {"fitness": 5}
     },
     {
         "id": "prod-8",
@@ -239,7 +247,8 @@ HARDCODED_PRODUCTS = [
             "camera": "50MP Main + AI Magic Eraser",
             "storage": "256GB",
             "display": "6.7 inch LTPO OLED"
-        }
+        },
+        "labels": {"smartphones": 5, "photo": 5, "photography": 4}
     },
     {
         "id": "prod-9",
@@ -254,7 +263,8 @@ HARDCODED_PRODUCTS = [
             "display": "12.9 inch Liquid Retina XDR",
             "storage": "512GB",
             "features": "Apple Pencil & Magic Keyboard support"
-        }
+        },
+        "labels": {"photo": 3, "photography": 2}
     },
     {
         "id": "prod-10",
@@ -269,7 +279,8 @@ HARDCODED_PRODUCTS = [
             "features": "Heart Rate, Sleep, Body Composition",
             "battery": "40 hours",
             "water_resistance": "5ATM + IP68"
-        }
+        },
+        "labels": {"fitness": 5}
     }
 ]
 
@@ -278,26 +289,76 @@ HARDCODED_PRODUCTS = [
 def calculate_recommendation_score(product: dict, user_profile: UserProfile) -> float:
     score = 0.0
     
-    # Interest match (40% weight)
-    if product["category"] in user_profile.interests:
-        score += 40
+    # Labels-Interests matching (weighted multiplication)
+    # For each matching label, multiply user interest value with product label value
+    product_labels = product.get("labels", {})
+    labels_score = 0.0
+    max_labels_score = 0.0
+    
+    for interest_key, interest_value in user_profile.interests.items():
+        # Check for exact match
+        if interest_key in product_labels:
+            match_score = interest_value * product_labels[interest_key]
+            labels_score += match_score
+            max_labels_score += interest_value * 5  # Max possible (assuming max label value is 5)
+        
+        # Also check for similar matches (e.g., "photo" matches "photos", "photography")
+        # Normalize keys for better matching
+        interest_normalized = interest_key.lower().rstrip('s')
+        for label_key, label_value in product_labels.items():
+            label_normalized = label_key.lower().rstrip('s')
+            if interest_normalized == label_normalized and interest_key != label_key:
+                # Partial match with reduced weight
+                match_score = interest_value * label_value * 0.8
+                labels_score += match_score
+                break
+    
+    # Normalize labels score to 0-50 range (50% weight)
+    if max_labels_score > 0:
+        normalized_labels_score = (labels_score / max_labels_score) * 50
+    else:
+        normalized_labels_score = 0
+    score += normalized_labels_score
     
     # Brand preference (30% weight)
     if product["brand"] in user_profile.preferred_brands:
         score += 30
     
-    # Budget match (30% weight)
+    # Budget match (20% weight)
     price = product["price"]
     if user_profile.budget_range == "low" and price < 500:
-        score += 30
+        score += 20
     elif user_profile.budget_range == "medium" and 500 <= price <= 1200:
-        score += 30
+        score += 20
     elif user_profile.budget_range == "high" and price > 1200:
-        score += 30
+        score += 20
     elif user_profile.budget_range == "medium" and price < 500:
-        score += 20  # Still affordable
+        score += 15  # Still affordable
     
     return score
+
+
+def _format_interest_list(interests: Dict[str, int], max_items: int = 3) -> str:
+    if not interests:
+        return "fără preferințe specifice"
+    
+    sorted_interests = sorted(interests.items(), key=lambda item: item[1], reverse=True)
+    labels = [key.replace("_", " ") for key, _ in sorted_interests[:max_items]]
+    
+    if not labels:
+        return "fără preferințe specifice"
+    
+    if len(labels) == 1:
+        base_text = labels[0]
+    elif len(labels) == 2:
+        base_text = " și ".join(labels)
+    else:
+        base_text = ", ".join(labels[:-1]) + f" și {labels[-1]}"
+    
+    if len(sorted_interests) > max_items:
+        return f"{base_text}, alături de alte interese"
+    
+    return base_text
 
 
 # API Routes
@@ -316,9 +377,46 @@ async def login(request: LoginRequest):
     )
 
 
+def _filter_products(
+    products: List[dict],
+    *,
+    category: Optional[str] = None,
+    brand: Optional[str] = None,
+    price_min: Optional[float] = None,
+    price_max: Optional[float] = None,
+) -> List[dict]:
+    filtered = products
+
+    if category:
+        filtered = [p for p in filtered if p.get("category") == category]
+
+    if brand:
+        filtered = [p for p in filtered if p.get("brand") == brand]
+
+    if price_min is not None:
+        filtered = [p for p in filtered if float(p.get("price", 0)) >= price_min]
+
+    if price_max is not None:
+        filtered = [p for p in filtered if float(p.get("price", 0)) <= price_max]
+
+    return filtered
+
+
 @api_router.get("/products", response_model=List[Product])
-async def get_products():
-    return [Product(**p) for p in HARDCODED_PRODUCTS]
+async def get_products(
+    category: Optional[str] = None,
+    brand: Optional[str] = None,
+    price_min: Optional[float] = None,
+    price_max: Optional[float] = None,
+):
+    filtered = _filter_products(
+        HARDCODED_PRODUCTS,
+        category=category,
+        brand=brand,
+        price_min=price_min,
+        price_max=price_max,
+    )
+    return [Product(**p) for p in filtered]
 
 
 @api_router.get("/products/{product_id}", response_model=Product)
@@ -332,7 +430,13 @@ async def get_product(product_id: str):
 
 
 @api_router.get("/recommendations/{user_id}", response_model=Recommendation)
-async def get_recommendations(user_id: str):
+async def get_recommendations(
+    user_id: str,
+    category: Optional[str] = None,
+    brand: Optional[str] = None,
+    price_min: Optional[float] = None,
+    price_max: Optional[float] = None,
+):
     # Find user
     user_data = next((u for u in HARDCODED_USERS if u["id"] == user_id), None)
     
@@ -341,9 +445,18 @@ async def get_recommendations(user_id: str):
     
     user_profile = UserProfile(**user_data["profile"])
     
-    # Calculate scores for all products
+    # Apply user-selected filters first
+    candidate_products = _filter_products(
+        HARDCODED_PRODUCTS,
+        category=category,
+        brand=brand,
+        price_min=price_min,
+        price_max=price_max,
+    )
+
+    # Calculate scores for filtered products
     scored_products = []
-    for product in HARDCODED_PRODUCTS:
+    for product in candidate_products:
         score = calculate_recommendation_score(product, user_profile)
         if score > 0:  # Only include products with some relevance
             scored_products.append((score, product))
@@ -352,10 +465,27 @@ async def get_recommendations(user_id: str):
     scored_products.sort(key=lambda x: x[0], reverse=True)
     top_products = [Product(**p[1]) for p in scored_products[:3]]
     
-    # Generate reason
-    interests_str = ", ".join(user_profile.interests)
-    brands_str = ", ".join(user_profile.preferred_brands)
-    reason = f"Recomandate pe baza intereselor tale ({interests_str}), preferințelor pentru branduri ({brands_str}) și bugetului ({user_profile.budget_range})"
+    # Generate reason including filters criteria
+    interests_str = _format_interest_list(user_profile.interests)
+    if user_profile.preferred_brands:
+        brands_str = ", ".join(user_profile.preferred_brands)
+        brands_phrase = f", preferințelor tale pentru brandurile {brands_str}"
+    else:
+        brands_phrase = ""
+    criteria_parts = []
+    if category:
+        criteria_parts.append(f"categorie: {category}")
+    if brand:
+        criteria_parts.append(f"brand: {brand}")
+    if price_min is not None or price_max is not None:
+        rng = f"de la {price_min if price_min is not None else '—'} până la {price_max if price_max is not None else '—'} RON"
+        criteria_parts.append(f"preț: {rng}")
+    criteria_str = ", ".join(criteria_parts) if criteria_parts else "fără criterii suplimentare"
+
+    reason = (
+        f"Recomandate pe baza intereselor tale în {interests_str}"
+        f"{brands_phrase}, bugetului ({user_profile.budget_range}) și criteriilor selectate ({criteria_str})"
+    )
     
     return Recommendation(products=top_products, reason=reason)
 
