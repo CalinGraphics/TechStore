@@ -8,7 +8,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 
 ROOT_DIR = Path(__file__).parent
@@ -77,6 +77,7 @@ class Product(BaseModel):
     image_url: str
     specs: dict
     labels: Dict[str, int] = Field(default_factory=dict)  # {"photos": 2, "gaming": 3, etc.}
+    created_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class Recommendation(BaseModel):
     products: List[Product]
@@ -113,7 +114,8 @@ HARDCODED_USERS = [
         "password": "pass123",
         "profile": {
             "age_group": "18-25",
-            "interests": {"gaming": 5, "laptops": 4, "audio": 4},
+            "interests": {"gaming": 2, "laptops": 4, "audio": 4},
+            # Produse noi - {gaming: 5, laptop: 1} , {gaming:5, audio: 4}, {gaming:2, audio:1, photo:5} 
             "budget_range": "high",
             "preferred_brands": ["Asus", "Razer", "Sony"]
         }
@@ -280,9 +282,101 @@ HARDCODED_PRODUCTS = [
             "battery": "40 hours",
             "water_resistance": "5ATM + IP68"
         },
-        "labels": {"fitness": 5}
+        "labels": {"fitness": 5},
+        "created_at": datetime(2024, 1, 15, tzinfo=timezone.utc)
+    },
+    # Example new products that match multiple interests
+    {
+        "id": "prod-11",
+        "name": "Razer Blade 18 Gaming Laptop",
+        "category": "gaming",
+        "brand": "Razer",
+        "price": 2999.99,
+        "description": "Laptop gaming premium cu RTX 4090 și display 18 inch",
+        "image_url": "https://images.unsplash.com/photo-1603302576837-37561b2e2302?w=500",
+        "specs": {
+            "processor": "Intel Core i9-13950HX",
+            "gpu": "NVIDIA RTX 4090",
+            "ram": "64GB DDR5",
+            "storage": "2TB SSD",
+            "display": "18 inch QHD 240Hz"
+        },
+        "labels": {"gaming": 5, "laptops": 4, "audio": 3},  # Covers gaming + laptops + audio
+        "created_at": datetime.now(timezone.utc) - timedelta(days=5)  # Produs nou
+    },
+    {
+        "id": "prod-12",
+        "name": "Sony Alpha A7R V Camera",
+        "category": "photography",
+        "brand": "Sony",
+        "price": 3999.99,
+        "description": "Cameră mirrorless full-frame pentru fotografie profesională",
+        "image_url": "https://images.unsplash.com/photo-1606983340126-99ab4feaa64a?w=500",
+        "specs": {
+            "sensor": "61MP Full-Frame",
+            "iso": "100-32000",
+            "video": "8K 24p, 4K 60p",
+            "stabilization": "5-axis IBIS"
+        },
+        "labels": {"photo": 5, "photography": 5},  # Covers photo + photography
+        "created_at": datetime.now(timezone.utc) - timedelta(days=10)  # Produs nou
+    },
+    {
+        "id": "prod-13",
+        "name": "Asus ROG Phone 8 Pro",
+        "category": "gaming",
+        "brand": "Asus",
+        "price": 1299.99,
+        "description": "Smartphone gaming cu procesor overclocked și cooling activ",
+        "image_url": "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=500",
+        "specs": {
+            "processor": "Snapdragon 8 Gen 3",
+            "ram": "24GB",
+            "storage": "1TB",
+            "display": "6.78 inch AMOLED 165Hz",
+            "cooling": "Active cooling system"
+        },
+        "labels": {"gaming": 5, "smartphones": 4, "audio": 2},  # Covers gaming + smartphones + audio
+        "created_at": datetime.now(timezone.utc) - timedelta(days=3)  # Produs nou
     }
 ]
+
+
+# Helper function to check if product covers all user interests
+def _covers_all_interests(product: dict, user_profile: UserProfile) -> bool:
+    """
+    Verifică dacă un produs acoperă TOATE interesele utilizatorului.
+    Un produs acoperă un interes dacă are un label care se potrivește (exact sau similar).
+    """
+    if not user_profile.interests:
+        return False
+    
+    product_labels = product.get("labels", {})
+    if not product_labels:
+        return False
+    
+    # Normalize product labels for matching
+    normalized_labels = {}
+    for label_key in product_labels.keys():
+        normalized_key = label_key.lower().rstrip('s')
+        normalized_labels[normalized_key] = label_key
+    
+    # Check if all user interests are covered
+    for interest_key in user_profile.interests.keys():
+        interest_normalized = interest_key.lower().rstrip('s')
+        
+        # Check exact match
+        if interest_key in product_labels:
+            continue
+        
+        # Check normalized match
+        if interest_normalized in normalized_labels:
+            continue
+        
+        # If we reach here, this interest is not covered
+        return False
+    
+    return True
 
 
 # Recommendation algorithm
@@ -319,6 +413,10 @@ def calculate_recommendation_score(product: dict, user_profile: UserProfile) -> 
     else:
         normalized_labels_score = 0
     score += normalized_labels_score
+    
+    # BONUS: If product covers ALL user interests, add significant bonus
+    if _covers_all_interests(product, user_profile):
+        score += 25  # Bonus pentru produse care acoperă toate interesele
     
     # Brand preference (30% weight)
     if product["brand"] in user_profile.preferred_brands:
@@ -488,6 +586,76 @@ async def get_recommendations(
     )
     
     return Recommendation(products=top_products, reason=reason)
+
+
+@api_router.get("/users/{user_id}/new-products", response_model=List[Product])
+async def get_new_products_for_user(
+    user_id: str,
+    days: int = 30,  # Produse noi din ultimele N zile
+):
+    """
+    Returnează produse noi care se potrivesc cu interesele utilizatorului.
+    Un produs este considerat "nou" dacă a fost creat în ultimele N zile.
+    """
+    # Find user
+    user_data = next((u for u in HARDCODED_USERS if u["id"] == user_id), None)
+    
+    if not user_data:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user_profile = UserProfile(**user_data["profile"])
+    
+    # Calculate cutoff date
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+    
+    # Filter new products that match user interests
+    matching_products = []
+    for product in HARDCODED_PRODUCTS:
+        # Check if product is new (has created_at and is within date range)
+        product_created = product.get("created_at")
+        if product_created:
+            if isinstance(product_created, str):
+                # Parse string date if needed
+                try:
+                    product_created = datetime.fromisoformat(product_created.replace('Z', '+00:00'))
+                except:
+                    continue
+            if product_created < cutoff_date:
+                continue  # Product is too old
+        
+        # Check if product matches at least one user interest
+        product_labels = product.get("labels", {})
+        matches_interest = False
+        
+        for interest_key in user_profile.interests.keys():
+            # Check exact match
+            if interest_key in product_labels:
+                matches_interest = True
+                break
+            
+            # Check normalized match
+            interest_normalized = interest_key.lower().rstrip('s')
+            for label_key in product_labels.keys():
+                label_normalized = label_key.lower().rstrip('s')
+                if interest_normalized == label_normalized:
+                    matches_interest = True
+                    break
+            
+            if matches_interest:
+                break
+        
+        if matches_interest:
+            matching_products.append(product)
+    
+    # Sort by relevance (products that cover all interests first, then by score)
+    def sort_key(p):
+        covers_all = _covers_all_interests(p, user_profile)
+        score = calculate_recommendation_score(p, user_profile)
+        return (not covers_all, -score)  # False (covers all) comes first
+    
+    matching_products.sort(key=sort_key)
+    
+    return [Product(**p) for p in matching_products]
 
 
 @api_router.get("/debug/db")
