@@ -14,7 +14,7 @@ from datetime import datetime, timezone, timedelta
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection (optional)
+# MongoDB (opțional)
 mongo_url = os.environ.get('MONGO_URL')
 db_name = os.environ.get('DB_NAME')
 client = None
@@ -24,24 +24,18 @@ if mongo_url and db_name:
         client = AsyncIOMotorClient(mongo_url)
         db = client[db_name]
     except Exception:
-        # Proceed without DB if connection cannot be established
+        # Continuă fără DB dacă conexiunea nu poate fi stabilită
         client = None
         db = None
 
-# Create the main app without a prefix
 app = FastAPI()
-
 
 @app.get("/")
 def home():
     return {"message": "Hello World!"}
 
-
-# Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
-
-# Define Models
 class UserProfile(BaseModel):
     age_group: str  # "18-25", "26-35", "36-50", "50+"
     interests: Dict[str, int]  # {"photo": 4, "gaming": 5, "laptops": 3, etc.}
@@ -115,7 +109,6 @@ HARDCODED_USERS = [
         "profile": {
             "age_group": "18-25",
             "interests": {"gaming": 2, "laptops": 4, "audio": 4},
-            # Produse noi - {gaming: 5, laptop: 1} , {gaming:5, audio: 4}, {gaming:2, audio:1, photo:5} 
             "budget_range": "high",
             "preferred_brands": ["Asus", "Razer", "Sony"]
         }
@@ -285,7 +278,6 @@ HARDCODED_PRODUCTS = [
         "labels": {"fitness": 5},
         "created_at": datetime(2024, 1, 15, tzinfo=timezone.utc)
     },
-    # Example new products that match multiple interests
     {
         "id": "prod-11",
         "name": "Razer Blade 18 Gaming Laptop",
@@ -301,8 +293,8 @@ HARDCODED_PRODUCTS = [
             "storage": "2TB SSD",
             "display": "18 inch QHD 240Hz"
         },
-        "labels": {"gaming": 5, "laptops": 4, "audio": 3},  # Covers gaming + laptops + audio
-        "created_at": datetime.now(timezone.utc) - timedelta(days=5)  # Produs nou
+        "labels": {"gaming": 5, "laptops": 4, "audio": 3},
+        "created_at": datetime.now(timezone.utc) - timedelta(days=5)
     },
     {
         "id": "prod-12",
@@ -311,15 +303,15 @@ HARDCODED_PRODUCTS = [
         "brand": "Sony",
         "price": 3999.99,
         "description": "Cameră mirrorless full-frame pentru fotografie profesională",
-        "image_url": "https://images.unsplash.com/photo-1606983340126-99ab4feaa64a?w=500",
+        "image_url": "https://i.ytimg.com/vi/TqZk1zW2i1U/hq720.jpg?sqp=-oaymwEhCK4FEIIDSFryq4qpAxMIARUAAAAAGAElAADIQj0AgKJD&rs=AOn4CLBp-iEIxyXWoDPkvVzcQDjWFbr-ZA",
         "specs": {
             "sensor": "61MP Full-Frame",
             "iso": "100-32000",
             "video": "8K 24p, 4K 60p",
             "stabilization": "5-axis IBIS"
         },
-        "labels": {"photo": 5, "photography": 5},  # Covers photo + photography
-        "created_at": datetime.now(timezone.utc) - timedelta(days=10)  # Produs nou
+        "labels": {"photo": 5, "photography": 5},
+        "created_at": datetime.now(timezone.utc) - timedelta(days=10)
     },
     {
         "id": "prod-13",
@@ -336,13 +328,11 @@ HARDCODED_PRODUCTS = [
             "display": "6.78 inch AMOLED 165Hz",
             "cooling": "Active cooling system"
         },
-        "labels": {"gaming": 5, "smartphones": 4, "audio": 2},  # Covers gaming + smartphones + audio
-        "created_at": datetime.now(timezone.utc) - timedelta(days=3)  # Produs nou
+        "labels": {"gaming": 5, "smartphones": 4, "audio": 2},
+        "created_at": datetime.now(timezone.utc) - timedelta(days=3)
     }
 ]
 
-
-# Helper function to check if product covers all user interests
 def _covers_all_interests(product: dict, user_profile: UserProfile) -> bool:
     """
     Verifică dacă un produs acoperă TOATE interesele utilizatorului.
@@ -355,74 +345,84 @@ def _covers_all_interests(product: dict, user_profile: UserProfile) -> bool:
     if not product_labels:
         return False
     
-    # Normalize product labels for matching
+    # Normalizează label-urile produsului pentru matching
     normalized_labels = {}
     for label_key in product_labels.keys():
         normalized_key = label_key.lower().rstrip('s')
         normalized_labels[normalized_key] = label_key
     
-    # Check if all user interests are covered
+    # Verifică dacă toate interesele utilizatorului sunt acoperite
     for interest_key in user_profile.interests.keys():
         interest_normalized = interest_key.lower().rstrip('s')
         
-        # Check exact match
+        # Verifică potrivire exactă
         if interest_key in product_labels:
             continue
         
-        # Check normalized match
+        # Verifică potrivire normalizată
         if interest_normalized in normalized_labels:
             continue
-        
-        # If we reach here, this interest is not covered
         return False
     
     return True
 
 
-# Recommendation algorithm
 def calculate_recommendation_score(product: dict, user_profile: UserProfile) -> float:
+    """
+    Calculează scorul de recomandare pentru un produs bazat pe profilul utilizatorului.
+    Returnează un scor mai mare pentru produse care match-uiesc toate interesele, 
+    apoi pentru cele care match-uiesc mai multe interese, și mai mic pentru cele cu match-uri parțiale.
+    """
     score = 0.0
     
-    # Labels-Interests matching (weighted multiplication)
-    # For each matching label, multiply user interest value with product label value
+    # Potrivire Labels-Interese: pentru fiecare label care se potrivește, înmulțește valoarea interesului cu valoarea label-ului
     product_labels = product.get("labels", {})
     labels_score = 0.0
     max_labels_score = 0.0
+    matched_interests_count = 0
     
     for interest_key, interest_value in user_profile.interests.items():
-        # Check for exact match
+        # Verifică potrivire exactă
         if interest_key in product_labels:
             match_score = interest_value * product_labels[interest_key]
             labels_score += match_score
-            max_labels_score += interest_value * 5  # Max possible (assuming max label value is 5)
+            max_labels_score += interest_value * 5  # Maxim posibil (presupunând că valoarea maximă a label-ului este 5)
+            matched_interests_count += 1
         
-        # Also check for similar matches (e.g., "photo" matches "photos", "photography")
-        # Normalize keys for better matching
+        # Verifică și potriviri similare (ex: "photo" se potrivește cu "photos", "photography")
+        # Normalizează cheile pentru o potrivire mai bună
         interest_normalized = interest_key.lower().rstrip('s')
         for label_key, label_value in product_labels.items():
             label_normalized = label_key.lower().rstrip('s')
             if interest_normalized == label_normalized and interest_key != label_key:
-                # Partial match with reduced weight
+                # Potrivire parțială cu greutate redusă
                 match_score = interest_value * label_value * 0.8
                 labels_score += match_score
+                matched_interests_count += 1
                 break
     
-    # Normalize labels score to 0-50 range (50% weight)
+    # Normalizează scorul label-urilor la intervalul 0-50 (50% din greutate)
     if max_labels_score > 0:
         normalized_labels_score = (labels_score / max_labels_score) * 50
     else:
         normalized_labels_score = 0
     score += normalized_labels_score
     
-    # BONUS: If product covers ALL user interests, add significant bonus
+    # BONUS: Dacă produsul acoperă TOATE interesele utilizatorului, adaugă bonus semnificativ
     if _covers_all_interests(product, user_profile):
-        score += 25  # Bonus pentru produse care acoperă toate interesele
+        score += 25
+    elif matched_interests_count > 0:
+        # Bonus progresiv pentru produse care match-uiesc mai multe interese
+        total_interests = len(user_profile.interests)
+        if total_interests > 0:
+            match_ratio = matched_interests_count / total_interests
+            score += match_ratio * 15
     
-    # Brand preference (30% weight)
+    # Preferință brand (30% din greutate)
     if product["brand"] in user_profile.preferred_brands:
         score += 30
     
-    # Budget match (20% weight)
+    # Potrivire buget (20% din greutate)
     price = product["price"]
     if user_profile.budget_range == "low" and price < 500:
         score += 20
@@ -431,9 +431,137 @@ def calculate_recommendation_score(product: dict, user_profile: UserProfile) -> 
     elif user_profile.budget_range == "high" and price > 1200:
         score += 20
     elif user_profile.budget_range == "medium" and price < 500:
-        score += 15  # Still affordable
+        score += 15  
+    return score
+
+
+def calculate_similarity_score(product: dict, reference_product: dict) -> float:
+    """
+    Calculează scorul de similaritate între două produse.
+    Produsele sunt similare dacă au:
+    - Aceeași categorie
+    - Brand-uri similare sau aceleași
+    - Labels similare (interese comune)
+    - Preț similar (în același range)
+    """
+    score = 0.0
+    
+    # Potrivire categorie (40% din greutate)
+    if product.get("category") == reference_product.get("category"):
+        score += 40
+    
+    # Potrivire brand (25% din greutate)
+    if product.get("brand") == reference_product.get("brand"):
+        score += 25
+    
+    # Similaritate labels (30% din greutate)
+    product_labels = set(product.get("labels", {}).keys())
+    ref_labels = set(reference_product.get("labels", {}).keys())
+    
+    if ref_labels:
+        # Normalizează label-urile pentru o potrivire mai bună
+        product_labels_norm = {label.lower().rstrip('s') for label in product_labels}
+        ref_labels_norm = {label.lower().rstrip('s') for label in ref_labels}
+        
+        common_labels = product_labels_norm.intersection(ref_labels_norm)
+        if common_labels:
+            similarity_ratio = len(common_labels) / len(ref_labels_norm)
+            score += similarity_ratio * 30
+    
+    # Similaritate preț (5% din greutate) - produse în același range de preț
+    price_diff = abs(product.get("price", 0) - reference_product.get("price", 0))
+    ref_price = reference_product.get("price", 1)
+    if ref_price > 0:
+        price_ratio = 1 - min(price_diff / ref_price, 1.0)
+        score += price_ratio * 5
     
     return score
+
+
+def get_similar_products(reference_product: dict, all_products: List[dict], limit: int = 5) -> List[dict]:
+    """
+    Găsește produse similare cu un produs de referință.
+    Exclude produsul de referință din rezultate.
+    """
+    similar_products = []
+    
+    for product in all_products:
+        # Sare peste produsul de referință
+        if product.get("id") == reference_product.get("id"):
+            continue
+        
+        similarity = calculate_similarity_score(product, reference_product)
+        if similarity > 0:
+            similar_products.append((similarity, product))
+    
+    # Sortează după scorul de similaritate descrescător
+    similar_products.sort(key=lambda x: x[0], reverse=True)
+    
+    return [p[1] for p in similar_products[:limit]]
+
+
+def _matches_user_interests(product: dict, user_profile: UserProfile) -> bool:
+    """
+    Verifică dacă un produs se potrivește cu cel puțin unul dintre interesele utilizatorului.
+    """
+    product_labels = product.get("labels", {})
+    if not product_labels:
+        return False
+    
+    for interest_key in user_profile.interests.keys():
+        # Check exact match
+        if interest_key in product_labels:
+            return True
+        
+        # Check normalized match
+        interest_normalized = interest_key.lower().rstrip('s')
+        for label_key in product_labels.keys():
+            label_normalized = label_key.lower().rstrip('s')
+            if interest_normalized == label_normalized:
+                return True
+    
+    return False
+
+
+def get_discovery_recommendations(user_profile: UserProfile, all_products: List[dict], limit: int = 5) -> List[tuple]:
+    """
+    Găsește produse care NU se potrivesc cu interesele utilizatorului direct,
+    dar sunt similare cu produse care SE potrivesc cu interesele sale.
+    Acestea sunt recomandări "discovery" sau "surprising" care pot deschide 
+    noi interese pentru utilizator.
+    
+    Returns: List of tuples (similarity_score, product, reference_product_id)
+    """
+    # Găsește produse care se potrivesc cu interesele utilizatorului
+    matching_products = []
+    for product in all_products:
+        if _matches_user_interests(product, user_profile):
+            matching_products.append(product)
+    
+    if not matching_products:
+        return []
+    
+    # Pentru fiecare produs relevant, găsește produse similare
+    discovery_candidates = {}
+    
+    for matching_product in matching_products:
+        similar_products = get_similar_products(matching_product, all_products, limit=20)
+        
+        for similar_product in similar_products:
+            # Verifică că produsul similar NU se potrivește cu interesele utilizatorului
+            if not _matches_user_interests(similar_product, user_profile):
+                product_id = similar_product.get("id")
+                similarity = calculate_similarity_score(similar_product, matching_product)
+                
+                # Păstrează cel mai bun scor de similaritate pentru fiecare produs
+                if product_id not in discovery_candidates or similarity > discovery_candidates[product_id][0]:
+                    discovery_candidates[product_id] = (similarity, similar_product, matching_product.get("id"))
+    
+    # Sortează după scorul de similaritate
+    discovery_list = list(discovery_candidates.values())
+    discovery_list.sort(key=lambda x: x[0], reverse=True)
+    
+    return discovery_list[:limit]
 
 
 def _format_interest_list(interests: Dict[str, int], max_items: int = 3) -> str:
@@ -459,10 +587,8 @@ def _format_interest_list(interests: Dict[str, int], max_items: int = 3) -> str:
     return base_text
 
 
-# API Routes
 @api_router.post("/auth/login", response_model=LoginResponse)
 async def login(request: LoginRequest):
-    # Find user
     user_data = next((u for u in HARDCODED_USERS if u["username"] == request.username and u["password"] == request.password), None)
     
     if not user_data:
@@ -527,6 +653,150 @@ async def get_product(product_id: str):
     return Product(**product_data)
 
 
+@api_router.get("/products/{product_id}/similar", response_model=List[Product])
+async def get_similar_products_endpoint(product_id: str, limit: int = 5):
+    """
+    Returnează produse similare cu un produs dat.
+    Produsele sunt considerate similare dacă au aceeași categorie, brand similar,
+    labels comune sau preț similar.
+    """
+    reference_product = next((p for p in HARDCODED_PRODUCTS if p["id"] == product_id), None)
+    
+    if not reference_product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    similar_products = get_similar_products(reference_product, HARDCODED_PRODUCTS, limit=limit)
+    
+    return [Product(**p) for p in similar_products]
+
+
+@api_router.get("/recommendations/{user_id}/by-interest-type", response_model=Dict[str, Recommendation])
+async def get_recommendations_by_interest_type(
+    user_id: str,
+    category: Optional[str] = None,
+    brand: Optional[str] = None,
+    price_min: Optional[float] = None,
+    price_max: Optional[float] = None,
+):
+    """
+    Returnează recomandări grupate pe tipul de match:
+    - "all_interests": Produse care match-uiesc toate interesele
+    - "multiple_interests": Produse care match-uiesc mai multe interese
+    - "single_interest": Produse care match-uiesc cel puțin un interes
+    """
+    user_data = next((u for u in HARDCODED_USERS if u["id"] == user_id), None)
+    
+    if not user_data:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user_profile = UserProfile(**user_data["profile"])
+    candidate_products = _filter_products(
+        HARDCODED_PRODUCTS,
+        category=category,
+        brand=brand,
+        price_min=price_min,
+        price_max=price_max,
+    )
+    
+    products_covering_all = []
+    products_covering_multiple = []
+    products_covering_one = []
+    
+    for product in candidate_products:
+        score = calculate_recommendation_score(product, user_profile)
+        if score > 0:
+            covers_all = _covers_all_interests(product, user_profile)
+            
+            product_labels = product.get("labels", {})
+            matched_count = 0
+            for interest_key in user_profile.interests.keys():
+                interest_normalized = interest_key.lower().rstrip('s')
+                if interest_key in product_labels:
+                    matched_count += 1
+                else:
+                    for label_key in product_labels.keys():
+                        label_normalized = label_key.lower().rstrip('s')
+                        if interest_normalized == label_normalized:
+                            matched_count += 1
+                            break
+            
+            if covers_all:
+                products_covering_all.append((score, product))
+            elif matched_count >= 2:
+                products_covering_multiple.append((score, product))
+            else:
+                products_covering_one.append((score, product))
+    
+    products_covering_all.sort(key=lambda x: x[0], reverse=True)
+    products_covering_multiple.sort(key=lambda x: x[0], reverse=True)
+    products_covering_one.sort(key=lambda x: x[0], reverse=True)
+    
+    interests_str = _format_interest_list(user_profile.interests)
+    
+    result = {}
+    
+    if products_covering_all:
+        result["all_interests"] = Recommendation(
+            products=[Product(**p[1]) for p in products_covering_all[:5]],
+            reason=f"Produse care acoperă toate interesele tale în {interests_str}"
+        )
+    
+    if products_covering_multiple:
+        result["multiple_interests"] = Recommendation(
+            products=[Product(**p[1]) for p in products_covering_multiple[:5]],
+            reason=f"Produse care acoperă mai multe dintre interesele tale în {interests_str}"
+        )
+    
+    if products_covering_one:
+        result["single_interest"] = Recommendation(
+            products=[Product(**p[1]) for p in products_covering_one[:5]],
+            reason=f"Produse care se potrivesc cu cel puțin unul dintre interesele tale în {interests_str}"
+        )
+    
+    return result
+
+
+@api_router.get("/recommendations/{user_id}/discovery", response_model=Recommendation)
+async def get_discovery_recommendations_endpoint(
+    user_id: str,
+    limit: int = 5,
+):
+    """
+    Returnează recomandări de produse care NU se potrivesc cu interesele directe ale utilizatorului,
+    dar sunt similare cu produse care SE potrivesc cu interesele sale.
+    Acestea sunt recomandări "discovery" care pot deschide noi interese pentru utilizator.
+    
+    Exemple:
+    - Dacă utilizatorul este interesat de "gaming" și "laptops", ar putea primi recomandări 
+      pentru produse de "audio" sau "tablets" care sunt similare cu produsele sale de interes.
+    """
+    user_data = next((u for u in HARDCODED_USERS if u["id"] == user_id), None)
+    
+    if not user_data:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user_profile = UserProfile(**user_data["profile"])
+    
+    discovery_list = get_discovery_recommendations(user_profile, HARDCODED_PRODUCTS, limit=limit)
+    
+    if not discovery_list:
+        return Recommendation(
+            products=[],
+            reason="Nu s-au găsit produse similare care să nu fie deja în lista ta de interese."
+        )
+    
+    discovery_products = [Product(**item[1]) for item in discovery_list]
+    
+    interests_str = _format_interest_list(user_profile.interests)
+    reason = (
+        f"Aceste produse nu sunt în lista ta de interese ({interests_str}), "
+        f"dar sunt similare cu produse care te interesează. "
+        f"Ar putea deschide noi pasiuni pentru tine!"
+    )
+    
+    return Recommendation(products=discovery_products, reason=reason)
+
+
 @api_router.get("/recommendations/{user_id}", response_model=Recommendation)
 async def get_recommendations(
     user_id: str,
@@ -535,7 +805,13 @@ async def get_recommendations(
     price_min: Optional[float] = None,
     price_max: Optional[float] = None,
 ):
-    # Find user
+    """
+    Returnează recomandări de produse pentru un utilizator bazate pe interesele sale.
+    Algoritmul recomandă:
+    1. Produse care match-uiesc TOATE interesele utilizatorului (prioritate maximă)
+    2. Produse care match-uiesc mai multe interese
+    3. Produse care match-uiesc cel puțin un interes
+    """
     user_data = next((u for u in HARDCODED_USERS if u["id"] == user_id), None)
     
     if not user_data:
@@ -543,7 +819,6 @@ async def get_recommendations(
     
     user_profile = UserProfile(**user_data["profile"])
     
-    # Apply user-selected filters first
     candidate_products = _filter_products(
         HARDCODED_PRODUCTS,
         category=category,
@@ -552,18 +827,54 @@ async def get_recommendations(
         price_max=price_max,
     )
 
-    # Calculate scores for filtered products
     scored_products = []
+    products_covering_all = []
+    products_covering_multiple = []
+    products_covering_one = []
+    
     for product in candidate_products:
         score = calculate_recommendation_score(product, user_profile)
-        if score > 0:  # Only include products with some relevance
-            scored_products.append((score, product))
+        if score > 0:
+            covers_all = _covers_all_interests(product, user_profile)
+            
+            product_labels = product.get("labels", {})
+            matched_count = 0
+            for interest_key in user_profile.interests.keys():
+                interest_normalized = interest_key.lower().rstrip('s')
+                if interest_key in product_labels:
+                    matched_count += 1
+                else:
+                    for label_key in product_labels.keys():
+                        label_normalized = label_key.lower().rstrip('s')
+                        if interest_normalized == label_normalized:
+                            matched_count += 1
+                            break
+            
+            scored_products.append((score, product, covers_all, matched_count))
     
-    # Sort by score and get top 3
-    scored_products.sort(key=lambda x: x[0], reverse=True)
-    top_products = [Product(**p[1]) for p in scored_products[:3]]
+    # Sortează: 1) acoperă toate interesele, 2) scor, 3) număr de interese match-uite
+    scored_products.sort(key=lambda x: (not x[2], -x[0], -x[3]), reverse=False)
     
-    # Generate reason including filters criteria
+    # Separează produsele după tipul de potrivire
+    for score, product, covers_all, matched_count in scored_products:
+        if covers_all:
+            products_covering_all.append((score, product))
+        elif matched_count >= 2:
+            products_covering_multiple.append((score, product))
+        else:
+            products_covering_one.append((score, product))
+    
+    # Selectează produsele top: prioritizează produsele care acoperă toate interesele, apoi cele multiple, apoi cele cu un singur interes
+    top_products = []
+    if products_covering_all:
+        top_products.extend([Product(**p[1]) for p in products_covering_all[:3]])
+    if len(top_products) < 3 and products_covering_multiple:
+        remaining = 3 - len(top_products)
+        top_products.extend([Product(**p[1]) for p in products_covering_multiple[:remaining]])
+    if len(top_products) < 3 and products_covering_one:
+        remaining = 3 - len(top_products)
+        top_products.extend([Product(**p[1]) for p in products_covering_one[:remaining]])
+    
     interests_str = _format_interest_list(user_profile.interests)
     if user_profile.preferred_brands:
         brands_str = ", ".join(user_profile.preferred_brands)
@@ -580,9 +891,17 @@ async def get_recommendations(
         criteria_parts.append(f"preț: {rng}")
     criteria_str = ", ".join(criteria_parts) if criteria_parts else "fără criterii suplimentare"
 
+    match_info = ""
+    if products_covering_all and top_products[0] in [Product(**p[1]) for p in products_covering_all]:
+        match_info = " Produsele acoperă toate interesele tale."
+    elif products_covering_multiple and any(p in [Product(**p2[1]) for p2 in products_covering_multiple] for p in top_products):
+        match_info = " Produsele acoperă mai multe dintre interesele tale."
+    elif products_covering_one:
+        match_info = " Produsele se potrivesc cu cel puțin unul dintre interesele tale."
+
     reason = (
         f"Recomandate pe baza intereselor tale în {interests_str}"
-        f"{brands_phrase}, bugetului ({user_profile.budget_range}) și criteriilor selectate ({criteria_str})"
+        f"{brands_phrase}, bugetului ({user_profile.budget_range}) și criteriilor selectate ({criteria_str}).{match_info}"
     )
     
     return Recommendation(products=top_products, reason=reason)
@@ -591,13 +910,12 @@ async def get_recommendations(
 @api_router.get("/users/{user_id}/new-products", response_model=List[Product])
 async def get_new_products_for_user(
     user_id: str,
-    days: int = 30,  # Produse noi din ultimele N zile
+    days: int = 30,  
 ):
     """
     Returnează produse noi care se potrivesc cu interesele utilizatorului.
     Un produs este considerat "nou" dacă a fost creat în ultimele N zile.
     """
-    # Find user
     user_data = next((u for u in HARDCODED_USERS if u["id"] == user_id), None)
     
     if not user_data:
@@ -605,35 +923,28 @@ async def get_new_products_for_user(
     
     user_profile = UserProfile(**user_data["profile"])
     
-    # Calculate cutoff date
     cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
     
-    # Filter new products that match user interests
     matching_products = []
     for product in HARDCODED_PRODUCTS:
-        # Check if product is new (has created_at and is within date range)
         product_created = product.get("created_at")
         if product_created:
             if isinstance(product_created, str):
-                # Parse string date if needed
                 try:
                     product_created = datetime.fromisoformat(product_created.replace('Z', '+00:00'))
                 except:
                     continue
             if product_created < cutoff_date:
-                continue  # Product is too old
+                continue
         
-        # Check if product matches at least one user interest
         product_labels = product.get("labels", {})
         matches_interest = False
         
         for interest_key in user_profile.interests.keys():
-            # Check exact match
             if interest_key in product_labels:
                 matches_interest = True
                 break
             
-            # Check normalized match
             interest_normalized = interest_key.lower().rstrip('s')
             for label_key in product_labels.keys():
                 label_normalized = label_key.lower().rstrip('s')
@@ -647,11 +958,10 @@ async def get_new_products_for_user(
         if matches_interest:
             matching_products.append(product)
     
-    # Sort by relevance (products that cover all interests first, then by score)
     def sort_key(p):
         covers_all = _covers_all_interests(p, user_profile)
         score = calculate_recommendation_score(p, user_profile)
-        return (not covers_all, -score)  # False (covers all) comes first
+        return (not covers_all, -score)
     
     matching_products.sort(key=sort_key)
     
@@ -660,7 +970,6 @@ async def get_new_products_for_user(
 
 @api_router.get("/debug/db")
 async def debug_db():
-    # Expose in-memory data for debugging; mask passwords
     safe_users = []
     for u in HARDCODED_USERS:
         safe_user = {**u}
@@ -678,7 +987,6 @@ async def root():
     return {"message": "Electronics Store API"}
 
 
-# Include the router in the main app
 app.include_router(api_router)
 
 app.add_middleware(
@@ -689,7 +997,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
