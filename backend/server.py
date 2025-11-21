@@ -61,6 +61,15 @@ class LoginResponse(BaseModel):
     role: str
     profile: UserProfile
 
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+    age_group: str
+    budget_range: str
+    interests: List[str]
+    preferred_brands: List[str] = []
+    role: Optional[str] = None
+
 class Product(BaseModel):
     model_config = ConfigDict(extra="ignore")
     
@@ -514,6 +523,45 @@ async def login(request: LoginRequest):
         username=user_data["username"],
         role=user_data.get("role", "user"),
         profile=UserProfile(**user_data["profile"])
+    )
+
+def normalize_list(values: List[str]) -> List[str]:
+    normalized: List[str] = []
+    for value in values:
+        cleaned = value.strip().lower()
+        if cleaned:
+            normalized.append(cleaned)
+    return normalized
+
+@api_router.post("/auth/register", response_model=LoginResponse)
+async def register(request: RegisterRequest):
+    username = request.username.strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="Username invalid")
+    if any(u["username"].lower() == username.lower() for u in HARDCODED_USERS):
+        raise HTTPException(status_code=400, detail="Username already taken")
+    interests = normalize_list(request.interests)
+    if not interests:
+        raise HTTPException(status_code=400, detail="Selectează cel puțin un interes")
+    preferred_brands = [value.strip() for value in request.preferred_brands if value.strip()]
+    new_user = {
+        "id": str(uuid.uuid4()),
+        "username": username,
+        "password": request.password,
+        "role": request.role if request.role in {"admin", "user"} else "user",
+        "profile": {
+            "age_group": request.age_group,
+            "budget_range": request.budget_range,
+            "interests": interests,
+            "preferred_brands": preferred_brands,
+        },
+    }
+    HARDCODED_USERS.append(new_user)
+    return LoginResponse(
+        user_id=new_user["id"],
+        username=new_user["username"],
+        role=new_user["role"],
+        profile=UserProfile(**new_user["profile"]),
     )
 
 

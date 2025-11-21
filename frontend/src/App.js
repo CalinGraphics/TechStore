@@ -285,22 +285,53 @@ const LoginPage = ({ onLogin }) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState("login");
+  const [regAge, setRegAge] = useState("18-25");
+  const [regBudget, setRegBudget] = useState("medium");
+  const [regInterests, setRegInterests] = useState(["laptops"]);
+  const [regBrands, setRegBrands] = useState("");
+
+  const isRegister = mode === "register";
+
+  const toggleRegInterest = (value) => {
+    setRegInterests((prev) =>
+      prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]
+    );
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const response = await axios.post(`${API}/auth/login`, {
-        username,
-        password,
-      });
-      
-      onLogin(response.data);
-      toast.success(`Bun venit, ${response.data.username}!`);
+      if (isRegister) {
+        if (regInterests.length === 0) {
+          toast.error("Selectează cel puțin un interes");
+          setLoading(false);
+          return;
+        }
+        const response = await axios.post(`${API}/auth/register`, {
+          username,
+          password,
+          age_group: regAge,
+          budget_range: regBudget,
+          interests: regInterests,
+          preferred_brands: parseListInput(regBrands),
+        });
+        onLogin(response.data);
+        toast.success("Cont creat şi autentificat!");
+      } else {
+        const response = await axios.post(`${API}/auth/login`, {
+          username,
+          password,
+        });
+        onLogin(response.data);
+        toast.success(`Bun venit, ${response.data.username}!`);
+      }
     } catch (error) {
-      toast.error("Autentificare eșuată. Verifică username-ul și parola.");
-      console.error("Login error:", error);
+      const detail = error.response?.data?.detail || "Autentificare eșuată. Verifică datele introduse.";
+      toast.error(detail);
+      console.error("Auth error:", error);
     } finally {
       setLoading(false);
     }
@@ -353,15 +384,68 @@ const LoginPage = ({ onLogin }) => {
                   className="form-input"
                 />
               </div>
+              {isRegister && (
+                <>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Grupă de vârstă</label>
+                      <select className="auth-select" value={regAge} onChange={(e) => setRegAge(e.target.value)}>
+                        <option value="18-25">18-25</option>
+                        <option value="26-35">26-35</option>
+                        <option value="36-50">36-50</option>
+                        <option value="50+">50+</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Buget</label>
+                      <select className="auth-select" value={regBudget} onChange={(e) => setRegBudget(e.target.value)}>
+                        <option value="low">Buget redus (&lt;500 RON)</option>
+                        <option value="medium">Buget mediu (500-1200 RON)</option>
+                        <option value="high">Buget ridicat (&gt;1200 RON)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label>Interese</label>
+                    <div className="interest-grid">
+                      {INTEREST_OPTIONS.map((option) => (
+                        <button
+                          type="button"
+                          key={`register-${option.value}`}
+                          className={`interest-chip ${regInterests.includes(option.value) ? "active" : ""}`}
+                          onClick={() => toggleRegInterest(option.value)}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label>Branduri preferate (separate prin virgulă)</label>
+                    <Input
+                      className="auth-input"
+                      value={regBrands}
+                      placeholder="Apple, Samsung"
+                      onChange={(e) => setRegBrands(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
               <Button
                 data-testid="login-button"
                 type="submit"
                 className="login-button"
                 disabled={loading}
               >
-                {loading ? "Se încarcă..." : "Autentificare"}
+                {loading ? "Se încarcă..." : isRegister ? "Creează cont" : "Autentificare"}
               </Button>
             </form>
+            <div className="auth-toggle">
+              {isRegister ? "Ai deja cont?" : "Nu ai cont?"}{" "}
+              <button type="button" onClick={() => setMode(isRegister ? "login" : "register")}>
+                {isRegister ? "Autentifică-te" : "Creează unul"}
+              </button>
+            </div>
           </CardContent>
         </Card>
       </div>
