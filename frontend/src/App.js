@@ -587,6 +587,7 @@ const AdminPanel = ({ user, onRefresh }) => {
     delivery_method: "",
     is_active: true
   });
+  const [imagePreview, setImagePreview] = useState("");
 
   useEffect(() => {
     fetchProducts();
@@ -639,6 +640,7 @@ const AdminPanel = ({ user, onRefresh }) => {
       delivery_method: product.delivery_method || "",
       is_active: product.is_active ?? product.stock > 0
     });
+    setImagePreview(product.image_url || "");
     setShowAddForm(true);
   };
 
@@ -663,12 +665,29 @@ const AdminPanel = ({ user, onRefresh }) => {
         name: "", category: "", brand: "", price: 0, description: "",
         image_url: "", specs: {}, stock: 0, supplier: "", delivery_method: "", is_active: true
       });
+      setImagePreview("");
       fetchProducts();
       if (onRefresh) onRefresh();
     } catch (error) {
       toast.error(editingProduct ? "Eroare la actualizarea produsului" : "Eroare la adăugarea produsului");
       console.error("Submit error:", error);
     }
+  };
+
+  const handleProductImageUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const dataUrl = reader.result?.toString() || "";
+      setImagePreview(dataUrl);
+      setFormData({ ...formData, image_url: dataUrl });
+      toast.success("Imagine produs încărcată cu succes");
+    };
+    reader.onerror = () => {
+      toast.error("Nu am putut încărca imaginea");
+    };
+    reader.readAsDataURL(file);
   };
 
   if (loading) {
@@ -733,6 +752,20 @@ const AdminPanel = ({ user, onRefresh }) => {
               <div className="form-group">
                 <label>URL Imagine</label>
                 <Input value={formData.image_url} onChange={(e) => setFormData({...formData, image_url: e.target.value})} required />
+              </div>
+              <div className="form-group">
+                <label>Imagine locală</label>
+                <div className="avatar-actions">
+                  <label className="upload-label">
+                    <Camera className="w-4 h-4" />
+                    Încarcă fișier
+                    <input type="file" accept="image/*" onChange={handleProductImageUpload} />
+                  </label>
+                  {imagePreview && (
+                    <img src={imagePreview} alt="Preview produs" className="product-preview-thumb" />
+                  )}
+                </div>
+                <p className="form-hint">Poți folosi fie un link extern, fie o imagine locală.</p>
               </div>
               <div className="form-row">
                 <div className="form-group">
@@ -831,6 +864,7 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
   const [allProducts, setAllProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
   const [initialLoading, setInitialLoading] = useState(true);
   const [productsLoading, setProductsLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
@@ -1166,7 +1200,7 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
                 <h2 className="section-title">Toate Produsele</h2>
                 <p className="section-description">Explorează întreaga noastră colecție</p>
               </div>
-              <div className="categories-filter">
+                <div className="categories-filter">
                 <Button
                   className={`filter-chip ${selectedCategory === null ? "active" : ""}`}
                   onClick={() => handleCategoryChange(null)}
@@ -1183,6 +1217,14 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
                   </Button>
                 ))}
               </div>
+                <div className="search-wrapper">
+                  <Input
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Caută produs după nume..."
+                    className="search-input"
+                  />
+                </div>
               {productsLoading ? (
                 <div className="products-loading">
                   <div className="spinner small"></div>
@@ -1190,7 +1232,11 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
                 </div>
               ) : (
                 <div className="products-grid" data-testid="all-products-grid">
-                  {allProducts.map((product) => (
+                  {allProducts
+                    .filter((product) =>
+                      product.name.toLowerCase().includes(searchTerm.toLowerCase())
+                    )
+                    .map((product) => (
                     <ProductCard
                       key={product.id}
                       product={product}
