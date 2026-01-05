@@ -27,6 +27,9 @@ import {
   Camera,
   Save,
   ArrowLeft,
+  Heart,
+  History,
+  Check,
 } from "lucide-react";
 import {
   Sheet,
@@ -37,6 +40,14 @@ import {
   SheetTrigger,
   SheetFooter,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
 const API = `${BACKEND_URL}/api`;
@@ -454,12 +465,19 @@ const LoginPage = ({ onLogin }) => {
 };
 
 // Product Card Component
-const ProductCard = ({ product, onClick, isRecommended = false, onAddToCart, matchInfo }) => {
+const ProductCard = ({ product, onClick, isRecommended = false, onAddToCart, matchInfo, isFavorite = false, onToggleFavorite }) => {
   const isAvailable = (product.stock ?? 0) > 0 && product.is_active !== false;
   const tags = product.tags && product.tags.length ? product.tags : [product.category];
   const handleAddToCart = (e) => {
     e.stopPropagation();
     onAddToCart(product);
+  };
+  
+  const handleToggleFavorite = (e) => {
+    e.stopPropagation();
+    if (onToggleFavorite) {
+      onToggleFavorite(product.id);
+    }
   };
 
   const matchScore = typeof matchInfo?.score === "number" ? Math.round(matchInfo.score) : null;
@@ -485,6 +503,17 @@ const ProductCard = ({ product, onClick, isRecommended = false, onAddToCart, mat
             e.target.src = "https://via.placeholder.com/300x200?text=No+Image";
           }}
         />
+        {onToggleFavorite && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="favorite-btn"
+            onClick={handleToggleFavorite}
+            data-testid={`favorite-btn-${product.id}`}
+          >
+            <Heart className={`w-4 h-4 ${isFavorite ? "fill-red-500 text-red-500" : ""}`} />
+          </Button>
+        )}
       </div>
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
@@ -871,10 +900,49 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
   const [recommendationReason, setRecommendationReason] = useState("");
   const [cartOpen, setCartOpen] = useState(false);
   const [profileData, setProfileData] = useState(user?.profile ?? null);
+  const [favorites, setFavorites] = useState([]);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutData, setCheckoutData] = useState({
+    full_name: "",
+    address: "",
+    city: "",
+    postal_code: "",
+    phone: "",
+    email: "",
+    payment_method: "card"
+  });
 
   useEffect(() => {
     fetchDashboardData();
+    fetchFavorites();
   }, [user]);
+
+  const fetchFavorites = async () => {
+    try {
+      const response = await axios.get(`${API}/favorites/${user.user_id}`);
+      setFavorites(response.data.map(p => p.id));
+    } catch (error) {
+      console.error("Error fetching favorites:", error);
+    }
+  };
+
+  const toggleFavorite = async (productId) => {
+    try {
+      const isFavorite = favorites.includes(productId);
+      if (isFavorite) {
+        await axios.delete(`${API}/favorites/${user.user_id}/${productId}`);
+        setFavorites(favorites.filter(id => id !== productId));
+        toast.success("Produs eliminat din favorite");
+      } else {
+        await axios.post(`${API}/favorites/${user.user_id}/${productId}`);
+        setFavorites([...favorites, productId]);
+        toast.success("Produs adăugat la favorite");
+      }
+    } catch (error) {
+      toast.error("Eroare la actualizarea favorite");
+      console.error("Favorite error:", error);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -998,16 +1066,45 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
       toast.error("Coșul este gol");
       return;
     }
+    setCheckoutOpen(true);
+  };
+
+  const submitCheckout = async () => {
+    if (!checkoutData.full_name || !checkoutData.address || !checkoutData.city || !checkoutData.phone || !checkoutData.email) {
+      toast.error("Completează toate câmpurile obligatorii");
+      return;
+    }
     try {
       await axios.post(`${API}/transactions`, {
         items: cart.map((item) => ({
           product_id: item.id,
           quantity: item.quantity,
         })),
+        shipping_address: checkoutData.address,
+        city: checkoutData.city,
+        postal_code: checkoutData.postal_code,
+        full_name: checkoutData.full_name,
+        phone: checkoutData.phone,
+        email: checkoutData.email,
+        payment_method: checkoutData.payment_method
+      }, {
+        headers: {
+          "X-User-Id": user.user_id
+        }
       });
       toast.success("Comandă procesată cu succes!");
       setCart([]);
       setCartOpen(false);
+      setCheckoutOpen(false);
+      setCheckoutData({
+        full_name: "",
+        address: "",
+        city: "",
+        postal_code: "",
+        phone: "",
+        email: "",
+        payment_method: "card"
+      });
       await fetchDashboardData();
       await fetchProductsByCategory(selectedCategory);
     } catch (error) {
@@ -1139,6 +1236,111 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
               </SheetContent>
             </Sheet>
 
+            <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Finalizare comandă</DialogTitle>
+                  <DialogDescription>
+                    Completează datele de livrare pentru comanda ta
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <label className="text-sm font-medium">Nume complet *</label>
+                    <Input
+                      value={checkoutData.full_name}
+                      onChange={(e) => setCheckoutData({...checkoutData, full_name: e.target.value})}
+                      placeholder="Ion Popescu"
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <label className="text-sm font-medium">Adresă *</label>
+                    <Input
+                      value={checkoutData.address}
+                      onChange={(e) => setCheckoutData({...checkoutData, address: e.target.value})}
+                      placeholder="Strada Exemplu, Nr. 1"
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <label className="text-sm font-medium">Oraș *</label>
+                      <Input
+                        value={checkoutData.city}
+                        onChange={(e) => setCheckoutData({...checkoutData, city: e.target.value})}
+                        placeholder="București"
+                        required
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <label className="text-sm font-medium">Cod poștal</label>
+                      <Input
+                        value={checkoutData.postal_code}
+                        onChange={(e) => setCheckoutData({...checkoutData, postal_code: e.target.value})}
+                        placeholder="123456"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <label className="text-sm font-medium">Telefon *</label>
+                    <Input
+                      type="tel"
+                      value={checkoutData.phone}
+                      onChange={(e) => setCheckoutData({...checkoutData, phone: e.target.value})}
+                      placeholder="0712345678"
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <label className="text-sm font-medium">Email *</label>
+                    <Input
+                      type="email"
+                      value={checkoutData.email}
+                      onChange={(e) => setCheckoutData({...checkoutData, email: e.target.value})}
+                      placeholder="exemplu@email.com"
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <label className="text-sm font-medium">Metodă de plată</label>
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={checkoutData.payment_method}
+                      onChange={(e) => setCheckoutData({...checkoutData, payment_method: e.target.value})}
+                    >
+                      <option value="card">Card bancar</option>
+                      <option value="cash">Ramburs la livrare</option>
+                    </select>
+                  </div>
+                  <div className="border-t pt-4">
+                    <div className="flex justify-between text-lg font-semibold">
+                      <span>Total:</span>
+                      <span>{getTotalPrice().toFixed(2)} RON</span>
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setCheckoutOpen(false)}>
+                    Anulează
+                  </Button>
+                  <Button onClick={submitCheckout}>
+                    <Check className="w-4 h-4 mr-2" />
+                    Confirmă comanda
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/orders")}
+              className="logout-btn"
+            >
+              <History className="w-4 h-4" />
+              Comenzile mele
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -1158,6 +1360,10 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
           <TabsList className="tabs-list">
             <TabsTrigger value="recommendations" data-testid="recommendations-tab">Pentru Tine</TabsTrigger>
             <TabsTrigger value="all" data-testid="all-products-tab">Toate Produsele</TabsTrigger>
+            <TabsTrigger value="favorites" data-testid="favorites-tab">
+              <Heart className="w-4 h-4 mr-2" />
+              Favorite
+            </TabsTrigger>
             {user.role === "admin" && (
               <TabsTrigger value="admin" data-testid="admin-tab">
                 <Settings className="w-4 h-4 mr-2" />
@@ -1187,6 +1393,8 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
                       onClick={() => handleProductClick(match.product.id)}
                       onAddToCart={addToCart}
                       isRecommended={true}
+                      isFavorite={favorites.includes(match.product.id)}
+                      onToggleFavorite={toggleFavorite}
                     />
                   ))
                 )}
@@ -1242,8 +1450,45 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
                       product={product}
                       onClick={() => handleProductClick(product.id)}
                       onAddToCart={addToCart}
+                      isFavorite={favorites.includes(product.id)}
+                      onToggleFavorite={toggleFavorite}
                     />
                   ))}
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="favorites" className="tab-content">
+            <div className="all-products-section">
+              <div className="section-header">
+                <h2 className="section-title">Produse favorite</h2>
+                <p className="section-description">Produsele tale favorite</p>
+              </div>
+              {productsLoading ? (
+                <div className="products-loading">
+                  <div className="spinner small"></div>
+                  <p>Se încarcă...</p>
+                </div>
+              ) : (
+                <div className="products-grid">
+                  {allProducts
+                    .filter(product => favorites.includes(product.id))
+                    .map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        onClick={() => handleProductClick(product.id)}
+                        onAddToCart={addToCart}
+                        isFavorite={true}
+                        onToggleFavorite={toggleFavorite}
+                      />
+                    ))}
+                  {allProducts.filter(product => favorites.includes(product.id)).length === 0 && (
+                    <div className="empty-state">
+                      Nu ai produse în lista de favorite. Adaugă produse la favorite pentru a le accesa mai ușor.
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1460,6 +1705,140 @@ const ProductDetails = ({ user, onLogout, cart, setCart }) => {
               </Button>
             </div>
           </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+const OrderHistoryPage = ({ user }) => {
+  const navigate = useNavigate();
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [user]);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(`${API}/orders/${user.user_id}`);
+      setOrders(response.data);
+    } catch (error) {
+      toast.error("Eroare la încărcarea comenzilor");
+      console.error("Orders error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusBadge = (status) => {
+    const statusMap = {
+      pending: { label: "În așteptare", className: "bg-yellow-100 text-yellow-800" },
+      confirmed: { label: "Confirmată", className: "bg-blue-100 text-blue-800" },
+      shipped: { label: "Expediată", className: "bg-purple-100 text-purple-800" },
+      delivered: { label: "Livrată", className: "bg-green-100 text-green-800" },
+      cancelled: { label: "Anulată", className: "bg-red-100 text-red-800" },
+    };
+    const statusInfo = statusMap[status] || statusMap.pending;
+    return <Badge className={statusInfo.className}>{statusInfo.label}</Badge>;
+  };
+
+  const formatDate = (dateString) => {
+    try {
+      return new Date(dateString).toLocaleDateString("ro-RO", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="spinner"></div>
+        <p>Se încarcă comenzile...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="dashboard-container">
+      <header className="dashboard-header">
+        <div className="header-content">
+          <div className="logo-section" onClick={() => navigate("/dashboard")} style={{ cursor: "pointer" }}>
+            <Zap className="header-logo" />
+            <h1 className="header-title">TechStore</h1>
+          </div>
+          <div className="user-section">
+            <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Înapoi
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <main className="dashboard-main">
+        <div className="all-products-section">
+          <div className="section-header">
+            <h2 className="section-title">Istoric comenzi</h2>
+            <p className="section-description">Toate comenzile tale</p>
+          </div>
+          
+          {orders.length === 0 ? (
+            <div className="empty-state">
+              Nu ai comandat încă. Explorează produsele și începe să cumperi!
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {orders.map((order) => (
+                <Card key={order.id} className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold">Comandă #{order.id.slice(0, 8)}</h3>
+                      <p className="text-sm text-gray-500">{formatDate(order.created_at)}</p>
+                    </div>
+                    {getStatusBadge(order.status)}
+                  </div>
+                  
+                  <div className="border-t pt-4 mb-4">
+                    <h4 className="font-medium mb-2">Produse:</h4>
+                    <div className="space-y-2">
+                      {order.items.map((item, idx) => (
+                        <div key={idx} className="flex justify-between text-sm">
+                          <span>{item.product_name} x {item.quantity}</span>
+                          <span>{(item.price * item.quantity).toFixed(2)} RON</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {order.shipping_info && (
+                    <div className="border-t pt-4 mb-4">
+                      <h4 className="font-medium mb-2">Date livrare:</h4>
+                      <div className="text-sm text-gray-600">
+                        {order.shipping_info.address && <p>{order.shipping_info.address}</p>}
+                        {order.shipping_info.phone && <p>Tel: {order.shipping_info.phone}</p>}
+                        {order.shipping_info.email && <p>Email: {order.shipping_info.email}</p>}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="border-t pt-4 flex justify-between items-center">
+                    <span className="font-semibold">Total:</span>
+                    <span className="text-xl font-bold">{order.total_amount.toFixed(2)} RON</span>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       </main>
     </div>
@@ -1809,6 +2188,16 @@ function App() {
             element={
               user ? (
                 <ProfilePage user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" />
+              )
+            }
+          />
+          <Route
+            path="/orders"
+            element={
+              user ? (
+                <OrderHistoryPage user={user} />
               ) : (
                 <Navigate to="/" />
               )
