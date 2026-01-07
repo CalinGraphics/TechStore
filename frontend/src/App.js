@@ -1237,16 +1237,16 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
             </Sheet>
 
             <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-md bg-slate-800 border-slate-700 text-slate-100">
                 <DialogHeader>
-                  <DialogTitle>Finalizare comandă</DialogTitle>
-                  <DialogDescription>
+                  <DialogTitle className="text-slate-100 font-bold">Finalizare comandă</DialogTitle>
+                  <DialogDescription className="text-slate-400">
                     Completează datele de livrare pentru comanda ta
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
-                    <label className="text-sm font-medium">Nume complet *</label>
+                    <label className="text-sm font-medium text-slate-200">Nume complet *</label>
                     <Input
                       value={checkoutData.full_name}
                       onChange={(e) => setCheckoutData({...checkoutData, full_name: e.target.value})}
@@ -1255,7 +1255,7 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <label className="text-sm font-medium">Adresă *</label>
+                    <label className="text-sm font-medium text-slate-200">Adresă *</label>
                     <Input
                       value={checkoutData.address}
                       onChange={(e) => setCheckoutData({...checkoutData, address: e.target.value})}
@@ -1265,7 +1265,7 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
-                      <label className="text-sm font-medium">Oraș *</label>
+                      <label className="text-sm font-medium text-slate-200">Oraș *</label>
                       <Input
                         value={checkoutData.city}
                         onChange={(e) => setCheckoutData({...checkoutData, city: e.target.value})}
@@ -1274,7 +1274,7 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
                       />
                     </div>
                     <div className="grid gap-2">
-                      <label className="text-sm font-medium">Cod poștal</label>
+                      <label className="text-sm font-medium text-slate-200">Cod poștal</label>
                       <Input
                         value={checkoutData.postal_code}
                         onChange={(e) => setCheckoutData({...checkoutData, postal_code: e.target.value})}
@@ -1283,7 +1283,7 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
                     </div>
                   </div>
                   <div className="grid gap-2">
-                    <label className="text-sm font-medium">Telefon *</label>
+                    <label className="text-sm font-medium text-slate-200">Telefon *</label>
                     <Input
                       type="tel"
                       value={checkoutData.phone}
@@ -1293,7 +1293,7 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <label className="text-sm font-medium">Email *</label>
+                    <label className="text-sm font-medium text-slate-200">Email *</label>
                     <Input
                       type="email"
                       value={checkoutData.email}
@@ -1303,20 +1303,20 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <label className="text-sm font-medium">Metodă de plată</label>
+                    <label className="text-sm font-medium text-slate-200">Metodă de plată</label>
                     <select
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      className="flex h-10 w-full rounded-md border border-slate-600 bg-slate-700 text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
                       value={checkoutData.payment_method}
                       onChange={(e) => setCheckoutData({...checkoutData, payment_method: e.target.value})}
                     >
-                      <option value="card">Card bancar</option>
-                      <option value="cash">Ramburs la livrare</option>
+                      <option value="card" className="bg-slate-700">Card bancar</option>
+                      <option value="cash" className="bg-slate-700">Ramburs la livrare</option>
                     </select>
                   </div>
-                  <div className="border-t pt-4">
-                    <div className="flex justify-between text-lg font-semibold">
+                  <div className="border-t border-slate-700 pt-4">
+                    <div className="flex justify-between text-lg font-semibold text-slate-100">
                       <span>Total:</span>
-                      <span>{getTotalPrice().toFixed(2)} RON</span>
+                      <span className="text-sky-400">{getTotalPrice().toFixed(2)} RON</span>
                     </div>
                   </div>
                 </div>
@@ -1509,11 +1509,13 @@ const ProductDetails = ({ user, onLogout, cart, setCart }) => {
   const navigate = useNavigate();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isFavorite, setIsFavorite] = useState(false);
   const productId = window.location.pathname.split("/").pop();
 
   useEffect(() => {
     fetchProduct();
-  }, [productId]);
+    fetchFavoriteStatus();
+  }, [productId, user]);
 
   const fetchProduct = async () => {
     try {
@@ -1525,6 +1527,35 @@ const ProductDetails = ({ user, onLogout, cart, setCart }) => {
       navigate("/dashboard");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFavoriteStatus = async () => {
+    if (!user || !productId) return;
+    try {
+      const response = await axios.get(`${API}/favorites/${user.user_id}`);
+      const favoriteIds = response.data.map(p => p.id);
+      setIsFavorite(favoriteIds.includes(productId));
+    } catch (error) {
+      console.error("Error fetching favorite status:", error);
+    }
+  };
+
+  const toggleFavorite = async () => {
+    if (!user || !productId) return;
+    try {
+      if (isFavorite) {
+        await axios.delete(`${API}/favorites/${user.user_id}/${productId}`);
+        setIsFavorite(false);
+        toast.success("Produs eliminat din favorite");
+      } else {
+        await axios.post(`${API}/favorites/${user.user_id}/${productId}`);
+        setIsFavorite(true);
+        toast.success("Produs adăugat la favorite");
+      }
+    } catch (error) {
+      toast.error("Eroare la actualizarea favorite");
+      console.error("Favorite error:", error);
     }
   };
 
@@ -1630,15 +1661,27 @@ const ProductDetails = ({ user, onLogout, cart, setCart }) => {
 
         <div className="product-details-content">
           <div className="product-image-section">
-            <img
-              src={product.image_url}
-              alt={product.name}
-              className="detail-product-image"
-              data-testid="product-image"
-              onError={(e) => {
-                e.target.src = "https://via.placeholder.com/600x400?text=No+Image";
-              }}
-            />
+            <div className="relative">
+              <img
+                src={product.image_url}
+                alt={product.name}
+                className="detail-product-image"
+                data-testid="product-image"
+                onError={(e) => {
+                  e.target.src = "https://via.placeholder.com/600x400?text=No+Image";
+                }}
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="favorite-btn-detail"
+                onClick={toggleFavorite}
+                data-testid="favorite-btn-detail"
+                title={isFavorite ? "Elimină din favorite" : "Adaugă la favorite"}
+              >
+                <Heart className={`w-6 h-6 ${isFavorite ? "fill-red-500 text-red-500" : "text-slate-300"}`} />
+              </Button>
+            </div>
           </div>
 
           <div className="product-info-section">
@@ -1694,15 +1737,26 @@ const ProductDetails = ({ user, onLogout, cart, setCart }) => {
 
             <div className="price-section">
               <div className="price-large" data-testid="product-price">{product.price.toFixed(2)} RON</div>
-              <Button 
-                className="add-to-cart-btn" 
-                onClick={addToCart}
-                data-testid="add-to-cart-button"
-                disabled={!isAvailable}
-              >
-                <ShoppingCart className="w-5 h-5" />
-                {isAvailable ? "Adaugă în coș" : "Indisponibil"}
-              </Button>
+              <div className="action-buttons">
+                <Button 
+                  variant={isFavorite ? "default" : "outline"}
+                  className="favorite-detail-btn" 
+                  onClick={toggleFavorite}
+                  data-testid="favorite-detail-button"
+                >
+                  <Heart className={`w-5 h-5 mr-2 ${isFavorite ? "fill-red-500 text-red-500" : ""}`} />
+                  {isFavorite ? "Elimină din favorite" : "Adaugă la favorite"}
+                </Button>
+                <Button 
+                  className="add-to-cart-btn" 
+                  onClick={addToCart}
+                  data-testid="add-to-cart-button"
+                  disabled={!isAvailable}
+                >
+                  <ShoppingCart className="w-5 h-5" />
+                  {isAvailable ? "Adaugă în coș" : "Indisponibil"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
