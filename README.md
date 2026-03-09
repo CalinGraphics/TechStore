@@ -131,7 +131,7 @@ Necesită Python **3.11+**.
 ```bash
 cd backend
 python -m venv venv
-venv\Scripts\activate   # Windows PowerShell
+venv\Scripts\activate   
 pip install -r requirements.txt
 ```
 
