@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from app.models import Product
 from app.utils import get_products_list
 from app.database import get_favorites_from_db, add_favorite_to_db, remove_favorite_from_db
+from app.database import get_user_by_id_from_db
 
 router = APIRouter()
 
@@ -13,6 +14,10 @@ async def get_favorites(user_id: str):
     """Get user's favorite products - citește din Supabase."""
     from app.database import get_products_from_db
     from app.data import ensure_product_tags
+
+    user = await get_user_by_id_from_db(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
     
     favorites_ids = await get_favorites_from_db(user_id)
     
@@ -38,6 +43,10 @@ async def get_favorites(user_id: str):
 async def add_to_favorites(user_id: str, product_id: str):
     """Add a product to favorites - salvează în Supabase."""
     from app.database import get_product_by_id_from_db
+
+    user = await get_user_by_id_from_db(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
     
     # Verifică dacă produsul există în Supabase
     product = await get_product_by_id_from_db(product_id)
@@ -58,6 +67,9 @@ async def add_to_favorites(user_id: str, product_id: str):
 @router.delete("/favorites/{user_id}/{product_id}")
 async def remove_from_favorites(user_id: str, product_id: str):
     """Remove a product from favorites."""
+    user = await get_user_by_id_from_db(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
     await remove_favorite_from_db(user_id, product_id)
     return {"message": "Product removed from favorites", "product_id": product_id}
 

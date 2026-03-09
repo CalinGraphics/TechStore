@@ -16,7 +16,7 @@ class User(BaseModel):
     """User model."""
     model_config = ConfigDict(extra="ignore")
     
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    id: Optional[str] = None
     username: str
     password: str
     role: str = "user"

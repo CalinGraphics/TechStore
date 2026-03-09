@@ -2,11 +2,26 @@
 import logging
 from typing import List, Optional, Dict
 from fastapi import HTTPException
+from passlib.context import CryptContext
 from supabase import create_client, Client
 from app.config import get_settings
-from app.data import HARDCODED_PRODUCTS, USER_FAVORITES, ORDERS
+from app.data import HARDCODED_PRODUCTS, HARDCODED_USERS, USER_FAVORITES, ORDERS
 
 logger = logging.getLogger(__name__)
+
+# Password hashing (bcrypt via passlib)
+_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def _hash_password(password: str) -> str:
+    return _pwd_context.hash(password)
+
+
+def _verify_password(plain_password: str, stored_password: str) -> bool:
+    try:
+        return _pwd_context.verify(plain_password, stored_password)
+    except Exception:
+        return False
 
 # Global Supabase client
 _supabase: Optional[Client] = None
@@ -134,8 +149,11 @@ async def get_favorites_from_db(user_id: str) -> List[str]:
     supabase = get_supabase_client()
     if supabase:
         try:
-            response = supabase.table("produse_favorite").select("product_id").eq("user_id", user_id).execute()
+            uid = int(user_id)
+            response = supabase.table("produse_favorite").select("product_id").eq("user_id", uid).execute()
             return [item["product_id"] for item in response.data]
+        except (ValueError, TypeError):
+            return []
         except Exception as e:
             logger.error(f"Error fetching favorites from DB: {e}")
             return USER_FAVORITES.get(user_id, [])
@@ -147,9 +165,12 @@ async def add_favorite_to_db(user_id: str, product_id: str) -> None:
     supabase = get_supabase_client()
     if supabase:
         try:
+            uid = int(user_id)
             logger.info(f"Adding favorite: user={user_id}, product={product_id}")
-            response = supabase.table("produse_favorite").insert({"user_id": user_id, "product_id": product_id}).execute()
+            response = supabase.table("produse_favorite").insert({"user_id": uid, "product_id": product_id}).execute()
             logger.info(f"Successfully added favorite: {response.data}")
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Invalid user id")
         except Exception as e:
             logger.error(f"Error adding favorite to DB: {e}", exc_info=True)
             # Check if it's a duplicate error - ignore duplicates
@@ -171,9 +192,12 @@ async def remove_favorite_from_db(user_id: str, product_id: str) -> None:
     supabase = get_supabase_client()
     if supabase:
         try:
-            response = supabase.table("produse_favorite").delete().eq("user_id", user_id).eq("product_id", product_id).execute()
+            uid = int(user_id)
+            response = supabase.table("produse_favorite").delete().eq("user_id", uid).eq("product_id", product_id).execute()
             if not response.data:
                 raise HTTPException(status_code=404, detail="Favorite not found")
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Invalid user id")
         except HTTPException:
             raise
         except Exception as e:
@@ -192,6 +216,10 @@ async def create_order_in_db(order_data: dict) -> dict:
         try:
             # Extragem produsele din comandă (vor merge în 'comenzi_produse')
             order_items = order_data.pop("items", [])
+
+            # user_id trebuie integer în DB (API trimite string)
+            if "user_id" in order_data and isinstance(order_data["user_id"], str):
+                order_data["user_id"] = int(order_data["user_id"])
 
             # Inserăm comanda în tabela 'comenzi'
             response = supabase.table("comenzi").insert(order_data).execute()
@@ -214,11 +242,14 @@ async def create_order_in_db(order_data: dict) -> dict:
                 created_order["items"] = order_items
 
             # Salvăm intrarea și în istoricul de comenzi
+            uid = created_order.get("user_id")
+            if isinstance(uid, str):
+                uid = int(uid)
             try:
                 supabase.table("istoric_comenzi").insert(
                     {
                         "order_id": order_id,
-                        "user_id": created_order.get("user_id"),
+                        "user_id": uid,
                         "status": created_order.get("status", "confirmed"),
                         "total_amount": created_order.get("total_amount", 0),
                         "created_at": created_order.get("created_at"),
@@ -229,6 +260,8 @@ async def create_order_in_db(order_data: dict) -> dict:
                 logger.warning(f"Failed to write to istoric_comenzi: {history_error}")
 
             return created_order
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Invalid user id")
         except Exception as e:
             logger.error(f"Error creating order in DB: {e}")
             raise HTTPException(status_code=500, detail=f"Error creating order: {str(e)}")
@@ -242,10 +275,11 @@ async def get_orders_from_db(user_id: str) -> List[dict]:
     supabase = get_supabase_client()
     if supabase:
         try:
+            uid = int(user_id)
             response = (
                 supabase.table("comenzi")
                 .select("*")
-                .eq("user_id", user_id)
+                .eq("user_id", uid)
                 .order("created_at", desc=True)
                 .execute()
             )
@@ -262,6 +296,8 @@ async def get_orders_from_db(user_id: str) -> List[dict]:
                 order["items"] = [dict(item) for item in items_response.data]
             
             return orders
+        except (ValueError, TypeError):
+            return []
         except Exception as e:
             logger.error(f"Error fetching orders from DB: {e}")
             return [o for o in ORDERS if o.get("user_id") == user_id]
@@ -273,11 +309,12 @@ async def get_order_by_id_from_db(user_id: str, order_id: str) -> Optional[dict]
     supabase = get_supabase_client()
     if supabase:
         try:
+            uid = int(user_id)
             response = (
                 supabase.table("comenzi")
                 .select("*")
                 .eq("id", order_id)
-                .eq("user_id", user_id)
+                .eq("user_id", uid)
                 .execute()
             )
             if not response.data:
@@ -294,6 +331,8 @@ async def get_order_by_id_from_db(user_id: str, order_id: str) -> Optional[dict]
             order["items"] = [dict(item) for item in items_response.data]
             
             return order
+        except (ValueError, TypeError):
+            return None
         except Exception as e:
             logger.error(f"Error fetching order from DB: {e}")
             return next((o for o in ORDERS if o.get("id") == order_id and o.get("user_id") == user_id), None)
@@ -301,6 +340,35 @@ async def get_order_by_id_from_db(user_id: str, order_id: str) -> Optional[dict]
 
 
 # User database functions
+def _build_profile_from_row(row: dict) -> dict:
+    """Construiește obiectul profile din coloanele tabelei utilizatori."""
+    return {
+        "age_group": row.get("age_group") or "",
+        "budget_range": row.get("budget_range") or "",
+        "interests": list(row.get("interests") or []),
+        "preferred_brands": list(row.get("preferred_brands") or []),
+    }
+
+
+def _user_row_to_api(row: dict) -> dict:
+    """Convertește un rând din DB (coloane) în format API (id str, profile dict)."""
+    return {
+        "id": str(row["id"]),
+        "username": row["username"],
+        "role": row.get("role", "user"),
+        "profile": _build_profile_from_row(row),
+    }
+
+
+def _hardcoded_user_to_api(user: dict) -> dict:
+    return {
+        "id": str(user.get("id", "")),
+        "username": user.get("username", ""),
+        "role": user.get("role", "user"),
+        "profile": user.get("profile") or {},
+    }
+
+
 async def get_user_from_db(username: str, password: str) -> Optional[dict]:
     """Get user from Supabase (tabela 'utilizatori') sau fallback."""
     supabase = get_supabase_client()
@@ -310,20 +378,42 @@ async def get_user_from_db(username: str, password: str) -> Optional[dict]:
                 supabase.table("utilizatori")
                 .select("*")
                 .eq("username", username)
-                .eq("password", password)
                 .execute()
             )
             if response.data:
-                user = dict(response.data[0])
-                # Parse profile if it's stored as JSON string
-                if isinstance(user.get("profile"), str):
-                    import json
-                    user["profile"] = json.loads(user["profile"])
-                return user
+                row = dict(response.data[0])
+                stored_password = str(row.get("password") or "")
+
+                # Normal case: hashed password
+                if _verify_password(password, stored_password):
+                    return _user_row_to_api(row)
+
+                # Compatibility: old plaintext password stored in DB
+                if stored_password == password:
+                    try:
+                        supabase.table("utilizatori").update(
+                            {"password": _hash_password(password)}
+                        ).eq("id", row["id"]).execute()
+                    except Exception as upgrade_error:
+                        logger.warning(f"Failed to upgrade plaintext password: {upgrade_error}")
+                    return _user_row_to_api(row)
+
+                return None
             return None
         except Exception as e:
             logger.error(f"Error fetching user from DB: {e}")
             return None
+    # Fallback: in-memory demo users
+    for user in HARDCODED_USERS:
+        if str(user.get("username", "")).lower() != username.lower():
+            continue
+        stored_password = str(user.get("password") or "")
+        if _verify_password(password, stored_password):
+            return _hardcoded_user_to_api(user)
+        if stored_password == password:
+            user["password"] = _hash_password(password)
+            return _hardcoded_user_to_api(user)
+        return None
     return None
 
 
@@ -332,94 +422,138 @@ async def get_user_by_id_from_db(user_id: str) -> Optional[dict]:
     supabase = get_supabase_client()
     if supabase:
         try:
+            uid = int(user_id)
             response = (
                 supabase.table("utilizatori")
                 .select("*")
-                .eq("id", user_id)
+                .eq("id", uid)
                 .execute()
             )
             if response.data:
-                user = dict(response.data[0])
-                # Parse profile if it's stored as JSON string
-                if isinstance(user.get("profile"), str):
-                    import json
-                    user["profile"] = json.loads(user["profile"])
-                return user
+                row = dict(response.data[0])
+                return _user_row_to_api(row)
+            return None
+        except (ValueError, TypeError):
             return None
         except Exception as e:
             logger.error(f"Error fetching user by ID from DB: {e}")
             return None
+    # Fallback: in-memory demo users
+    for user in HARDCODED_USERS:
+        if str(user.get("id")) == str(user_id):
+            return _hardcoded_user_to_api(user)
     return None
 
 
 async def create_user_in_db(user_data: dict) -> dict:
-    """Create a user in Supabase (tabela 'utilizatori') sau fallback."""
+    """Create a user in Supabase (tabela 'utilizatori'). Nu trimite id; DB generează id numeric."""
     supabase = get_supabase_client()
     if supabase:
         try:
-            # Prepare user data for Supabase
+            profile = user_data.get("profile") or {}
             db_user = {
-                "id": user_data["id"],
                 "username": user_data["username"],
-                "password": user_data["password"],
+                "password": _hash_password(user_data["password"]),
                 "role": user_data.get("role", "user"),
-                "profile": user_data["profile"]  # Supabase will handle JSON
+                "age_group": profile.get("age_group") or "",
+                "budget_range": profile.get("budget_range") or "",
+                "interests": list(profile.get("interests") or []),
+                "preferred_brands": list(profile.get("preferred_brands") or []),
             }
             response = supabase.table("utilizatori").insert(db_user).execute()
             if response.data:
-                created_user = dict(response.data[0])
-                # Parse profile if needed
-                if isinstance(created_user.get("profile"), str):
-                    import json
-                    created_user["profile"] = json.loads(created_user["profile"])
-                return created_user
+                row = dict(response.data[0])
+                return _user_row_to_api(row)
             raise HTTPException(status_code=500, detail="Failed to create user")
         except Exception as e:
             logger.error(f"Error creating user in DB: {e}")
             raise HTTPException(status_code=500, detail=f"Error creating user: {str(e)}")
     # Fallback: add to hardcoded list
-    from app.data import HARDCODED_USERS
-    HARDCODED_USERS.append(user_data)
-    return user_data
+    profile = user_data.get("profile") or {}
+    existing_ids: List[int] = []
+    for u in HARDCODED_USERS:
+        try:
+            existing_ids.append(int(str(u.get("id"))))
+        except Exception:
+            continue
+    new_id = str((max(existing_ids) + 1) if existing_ids else 1)
+    new_user = {
+        "id": new_id,
+        "username": user_data["username"],
+        "password": _hash_password(user_data["password"]),
+        "role": user_data.get("role", "user"),
+        "profile": {
+            "age_group": profile.get("age_group") or "",
+            "budget_range": profile.get("budget_range") or "",
+            "interests": list(profile.get("interests") or []),
+            "preferred_brands": list(profile.get("preferred_brands") or []),
+        },
+    }
+    HARDCODED_USERS.append(new_user)
+    return _hardcoded_user_to_api(new_user)
 
 
 async def update_user_in_db(user_id: str, user_data: dict) -> dict:
-    """Update a user in Supabase (tabela 'utilizatori') sau fallback."""
+    """Update a user in Supabase (tabela 'utilizatori'). Actualizează coloanele profilului."""
     supabase = get_supabase_client()
     if supabase:
         try:
-            # Prepare update data
+            uid = int(user_id)
+            profile = user_data.get("profile") or {}
             update_data = {
                 "username": user_data.get("username"),
-                "profile": user_data.get("profile")
+                "age_group": profile.get("age_group"),
+                "budget_range": profile.get("budget_range"),
+                "interests": list(profile.get("interests") or []),
+                "preferred_brands": list(profile.get("preferred_brands") or []),
             }
-            # Only update password if provided
             if "password" in user_data:
-                update_data["password"] = user_data["password"]
+                pwd = str(user_data["password"] or "")
+                update_data["password"] = pwd if pwd.startswith("$2") else _hash_password(pwd)
             if "role" in user_data:
                 update_data["role"] = user_data["role"]
-            
-            response = supabase.table("utilizatori").update(update_data).eq("id", user_id).execute()
+            update_data = {k: v for k, v in update_data.items() if v is not None}
+
+            response = supabase.table("utilizatori").update(update_data).eq("id", uid).execute()
             if not response.data:
                 raise HTTPException(status_code=404, detail="User not found")
-            updated_user = dict(response.data[0])
-            # Parse profile if needed
-            if isinstance(updated_user.get("profile"), str):
-                import json
-                updated_user["profile"] = json.loads(updated_user["profile"])
-            return updated_user
+            row = dict(response.data[0])
+            return _user_row_to_api(row)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Invalid user id")
         except HTTPException:
             raise
         except Exception as e:
             logger.error(f"Error updating user in DB: {e}")
             raise HTTPException(status_code=500, detail=f"Error updating user: {str(e)}")
     # Fallback: update in hardcoded list
-    from app.data import HARDCODED_USERS
-    user_index = next((i for i, u in enumerate(HARDCODED_USERS) if u["id"] == user_id), None)
+    user_index = next(
+        (i for i, u in enumerate(HARDCODED_USERS) if str(u.get("id")) == str(user_id)),
+        None,
+    )
     if user_index is None:
         raise HTTPException(status_code=404, detail="User not found")
-    HARDCODED_USERS[user_index].update(user_data)
-    return HARDCODED_USERS[user_index]
+
+    profile = user_data.get("profile") or {}
+    if user_data.get("username") is not None:
+        HARDCODED_USERS[user_index]["username"] = user_data["username"]
+    if "role" in user_data:
+        HARDCODED_USERS[user_index]["role"] = user_data["role"]
+    if "password" in user_data:
+        pwd = str(user_data["password"] or "")
+        HARDCODED_USERS[user_index]["password"] = pwd if pwd.startswith("$2") else _hash_password(pwd)
+
+    current_profile = HARDCODED_USERS[user_index].get("profile") or {}
+    current_profile.update(
+        {
+            "age_group": profile.get("age_group", current_profile.get("age_group", "")),
+            "budget_range": profile.get("budget_range", current_profile.get("budget_range", "")),
+            "interests": list(profile.get("interests") or current_profile.get("interests") or []),
+            "preferred_brands": list(profile.get("preferred_brands") or current_profile.get("preferred_brands") or []),
+        }
+    )
+    HARDCODED_USERS[user_index]["profile"] = current_profile
+    return _hardcoded_user_to_api(HARDCODED_USERS[user_index])
 
 
 async def check_username_exists(username: str) -> bool:
@@ -440,6 +574,5 @@ async def check_username_exists(username: str) -> bool:
             from app.data import HARDCODED_USERS
             return any(u["username"].lower() == username.lower() for u in HARDCODED_USERS)
     # Fallback
-    from app.data import HARDCODED_USERS
-    return any(u["username"].lower() == username.lower() for u in HARDCODED_USERS)
+    return any(str(u.get("username", "")).lower() == username.lower() for u in HARDCODED_USERS)
 

@@ -1,2 +1,2 @@
-# App package
+"""TechStore backend application package."""
 

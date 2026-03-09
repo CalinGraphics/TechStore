@@ -7,6 +7,7 @@ from app.models import Order, OrderItem, TransactionRequest, TransactionItem, Pr
 from app.data import refresh_product_status, ensure_product_tags
 from app.utils import get_products_list
 from app.database import create_order_in_db, get_orders_from_db, get_order_by_id_from_db
+from app.database import get_user_by_id_from_db
 
 router = APIRouter()
 
@@ -15,6 +16,10 @@ router = APIRouter()
 async def process_transaction(request: TransactionRequest, user_id: str = Header(..., alias="X-User-Id")):
     """Process a transaction and create an order - actualizează stocul în Supabase."""
     from app.database import get_product_by_id_from_db, update_product_in_db
+
+    user = await get_user_by_id_from_db(user_id)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid user")
     
     updated_products: List[Product] = []
     order_items: List[OrderItem] = []
@@ -137,7 +142,7 @@ async def get_user_orders(user_id: str):
             }
         formatted_orders.append({
             "id": order["id"],
-            "user_id": order["user_id"],
+            "user_id": str(order["user_id"]),
             "items": order.get("items", []),
             "total_amount": float(order["total_amount"]),
             "shipping_info": shipping_info,
@@ -169,7 +174,7 @@ async def get_order(user_id: str, order_id: str):
     
     return {
         "id": order["id"],
-        "user_id": order["user_id"],
+        "user_id": str(order["user_id"]),
         "items": order.get("items", []),
         "total_amount": float(order["total_amount"]),
         "shipping_info": shipping_info,

@@ -894,6 +894,10 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchMethod, setSearchMethod] = useState("bm25");
+  const [searchOrder, setSearchOrder] = useState("desc");
+  const [autocompleteOptions, setAutocompleteOptions] = useState([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [productsLoading, setProductsLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
@@ -967,6 +971,7 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
       const mergedProfile = { ...serverProfile, ...(user.profile || {}) };
       setProfileData(mergedProfile);
       setAllProducts(productsResponse.data);
+      setSearchResults([]);
       setCategories(categoriesResponse.data);
       setInitialized(true);
       if (selectedCategory) {
@@ -1003,6 +1008,61 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
     if (category === selectedCategory) return;
     setSelectedCategory(category);
     fetchProductsByCategory(category);
+  };
+
+  const performSearch = async (term, { specs = false } = {}) => {
+    const query = term.trim();
+    if (!query) {
+      setSearchResults([]);
+      return;
+    }
+    try {
+      const endpoint = specs ? "/spec-search" : "/products/search";
+      const response = await axios.get(`${API}${endpoint}`, {
+        params: {
+          q: query,
+          method: searchMethod,
+          order: searchOrder,
+        },
+      });
+      setSearchResults(response.data);
+    } catch (error) {
+      console.error("Search error:", error);
+      toast.error("Nu am putut executa căutarea");
+    }
+  };
+
+  const handleSearchChange = async (e) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    setSearchResults([]);
+
+    const query = value.trim();
+    if (!query) {
+      setAutocompleteOptions([]);
+      return;
+    }
+
+    // Autocomplete pentru titluri
+    try {
+      const response = await axios.get(`${API}/products/autocomplete`, {
+        params: { q: query },
+      });
+      setAutocompleteOptions(response.data);
+    } catch (error) {
+      console.error("Autocomplete error:", error);
+    }
+  };
+
+  const handleSearchSubmit = async (e) => {
+    e.preventDefault();
+    await performSearch(searchTerm, { specs: false });
+  };
+
+  const applyAutocomplete = async (title) => {
+    setSearchTerm(title);
+    setAutocompleteOptions([]);
+    await performSearch(title, { specs: false });
   };
 
   const handleProductClick = (productId) => {
@@ -1364,6 +1424,10 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
               <Heart className="w-4 h-4 mr-2" />
               Favorite
             </TabsTrigger>
+            <TabsTrigger value="spec-search" data-testid="spec-search-tab">
+              <Laptop className="w-4 h-4 mr-2" />
+              Căutare în specificații
+            </TabsTrigger>
             {user.role === "admin" && (
               <TabsTrigger value="admin" data-testid="admin-tab">
                 <Settings className="w-4 h-4 mr-2" />
@@ -1406,9 +1470,9 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
             <div className="all-products-section">
               <div className="section-header">
                 <h2 className="section-title">Toate Produsele</h2>
-                <p className="section-description">Explorează întreaga noastră colecție</p>
+                <p className="section-description">Explorează întreaga noastră colecție și folosește căutarea full‑text (TF‑IDF / BM25) în titlu, descriere și atribute.</p>
               </div>
-                <div className="categories-filter">
+              <div className="categories-filter">
                 <Button
                   className={`filter-chip ${selectedCategory === null ? "active" : ""}`}
                   onClick={() => handleCategoryChange(null)}
@@ -1425,14 +1489,49 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
                   </Button>
                 ))}
               </div>
-                <div className="search-wrapper">
-                  <Input
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Caută produs după nume..."
-                    className="search-input"
-                  />
+              <form className="search-wrapper" onSubmit={handleSearchSubmit}>
+                <Input
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                  placeholder="Caută produs după titlu, descriere sau specificații..."
+                  className="search-input"
+                />
+                <div className="search-controls">
+                  <select
+                    className="search-method-select"
+                    value={searchMethod}
+                    onChange={(e) => setSearchMethod(e.target.value)}
+                  >
+                    <option value="bm25">BM25 (Lucene-style)</option>
+                    <option value="tfidf">TF‑IDF</option>
+                  </select>
+                  <select
+                    className="search-method-select"
+                    value={searchOrder}
+                    onChange={(e) => setSearchOrder(e.target.value)}
+                  >
+                    <option value="desc">Scor descrescător</option>
+                    <option value="asc">Scor crescător</option>
+                  </select>
+                  <Button type="submit" size="sm">
+                    Caută
+                  </Button>
                 </div>
+                {autocompleteOptions.length > 0 && (
+                  <div className="autocomplete-panel" data-testid="autocomplete-panel">
+                    {autocompleteOptions.map((option) => (
+                      <button
+                        type="button"
+                        key={option}
+                        className="autocomplete-item"
+                        onClick={() => applyAutocomplete(option)}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </form>
               {productsLoading ? (
                 <div className="products-loading">
                   <div className="spinner small"></div>
@@ -1440,11 +1539,7 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
                 </div>
               ) : (
                 <div className="products-grid" data-testid="all-products-grid">
-                  {allProducts
-                    .filter((product) =>
-                      product.name.toLowerCase().includes(searchTerm.toLowerCase())
-                    )
-                    .map((product) => (
+                  {(searchResults.length > 0 ? searchResults : allProducts).map((product) => (
                     <ProductCard
                       key={product.id}
                       product={product}
@@ -1494,6 +1589,72 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
             </div>
           </TabsContent>
 
+          <TabsContent value="spec-search" className="tab-content">
+            <div className="all-products-section">
+              <div className="section-header">
+                <h2 className="section-title">Căutare în fișele tehnice</h2>
+                <p className="section-description">
+                  Căutare full‑text în specificațiile tehnice (ex: rezoluție, procesor, dimensiune ecran) folosind scor Lucene‑style (TF‑IDF / BM25).
+                </p>
+              </div>
+              <form className="search-wrapper" onSubmit={(e) => { e.preventDefault(); performSearch(searchTerm || "", { specs: true }); }}>
+                <Input
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                  placeholder="Ex: 1900x1200, RTX 4090, 32GB RAM..."
+                  className="search-input"
+                />
+                <div className="search-controls">
+                  <select
+                    className="search-method-select"
+                    value={searchMethod}
+                    onChange={(e) => setSearchMethod(e.target.value)}
+                  >
+                    <option value="bm25">BM25 (Lucene-style)</option>
+                    <option value="tfidf">TF‑IDF</option>
+                  </select>
+                  <select
+                    className="search-method-select"
+                    value={searchOrder}
+                    onChange={(e) => setSearchOrder(e.target.value)}
+                  >
+                    <option value="desc">Scor descrescător</option>
+                    <option value="asc">Scor crescător</option>
+                  </select>
+                  <Button type="submit" size="sm">
+                    Caută în specificații
+                  </Button>
+                </div>
+              </form>
+              <div className="spec-search-explanation">
+                <h3>Cum se calculează scorul?</h3>
+                <p>
+                  Pentru fiecare termen din interogare calculăm mai întâi importanța lui globală folosind IDF (Inverse Document Frequency),
+                  apoi combinăm frecvența termenului în document cu IDF folosind fie formula clasică TF‑IDF, fie formula BM25 utilizată de Apache Lucene.
+                  Rezultatul este un scor numeric; produsele sunt ordonate descrescător după acest scor.
+                </p>
+              </div>
+              <div className="products-grid" data-testid="spec-products-grid">
+                {searchResults.length === 0 ? (
+                  <div className="empty-state">
+                    Introdu o interogare pentru a vedea produse relevante după fișa tehnică.
+                  </div>
+                ) : (
+                  searchResults.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      onClick={() => handleProductClick(product.id)}
+                      onAddToCart={addToCart}
+                      isFavorite={favorites.includes(product.id)}
+                      onToggleFavorite={toggleFavorite}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          </TabsContent>
+
           {user.role === "admin" && (
             <TabsContent value="admin" className="tab-content">
               <AdminPanel user={user} onRefresh={fetchDashboardData} />
@@ -1510,11 +1671,14 @@ const ProductDetails = ({ user, onLogout, cart, setCart }) => {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [similarProducts, setSimilarProducts] = useState([]);
+  const [similarLoading, setSimilarLoading] = useState(false);
   const productId = window.location.pathname.split("/").pop();
 
   useEffect(() => {
     fetchProduct();
     fetchFavoriteStatus();
+    fetchSimilar();
   }, [productId, user]);
 
   const fetchProduct = async () => {
@@ -1538,6 +1702,21 @@ const ProductDetails = ({ user, onLogout, cart, setCart }) => {
       setIsFavorite(favoriteIds.includes(productId));
     } catch (error) {
       console.error("Error fetching favorite status:", error);
+    }
+  };
+
+  const fetchSimilar = async () => {
+    if (!productId) return;
+    try {
+      setSimilarLoading(true);
+      const response = await axios.get(`${API}/products/similar/${productId}`, {
+        params: { limit: 6 },
+      });
+      setSimilarProducts(response.data);
+    } catch (error) {
+      console.error("Similar products error:", error);
+    } finally {
+      setSimilarLoading(false);
     }
   };
 
@@ -1760,6 +1939,53 @@ const ProductDetails = ({ user, onLogout, cart, setCart }) => {
             </div>
           </div>
         </div>
+
+        <section className="similar-products-section">
+          <div className="section-header">
+            <h2 className="section-title">Produse similare</h2>
+            <p className="section-description">
+              Recomandări bazate pe similaritatea textuală dintre acest produs și restul colecției (TF‑IDF + similaritate cosinus).
+            </p>
+          </div>
+          {similarLoading ? (
+            <div className="products-loading">
+              <div className="spinner small"></div>
+              <p>Căutăm produse similare...</p>
+            </div>
+          ) : similarProducts.length === 0 ? (
+            <div className="empty-state">
+              Nu am găsit produse suficient de similare pe baza descrierii și specificațiilor.
+            </div>
+          ) : (
+            <div className="products-grid">
+              {similarProducts.map((p) => (
+                <ProductCard
+                  key={p.id}
+                  product={p}
+                  onClick={() => navigate(`/product/${p.id}`)}
+                  onAddToCart={(prod) => {
+                    const target = prod || p;
+                    const existingItem = cart.find((item) => item.id === target.id);
+                    if (existingItem && existingItem.quantity >= target.stock) {
+                      toast.error("Stoc insuficient");
+                      return;
+                    }
+                    setCart(
+                      existingItem
+                        ? cart.map((item) =>
+                            item.id === target.id
+                              ? { ...item, quantity: item.quantity + 1 }
+                              : item
+                          )
+                        : [...cart, { ...target, quantity: 1 }]
+                    );
+                    toast.success(`${target.name} adăugat în coș`);
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </section>
       </main>
     </div>
   );

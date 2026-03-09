@@ -885,6 +885,15 @@ h1, h2, h3, h4, h5, h6 {
   padding: 0.25rem;
   border-radius: 12px;
   margin-bottom: 2rem;
+  color: #e5e7eb;
+}
+
+.tabs-list button {
+  color: #e5e7eb;
+}
+
+.tabs-list button[data-state="active"] {
+  color: #0f172a;
 }
 
 .tab-content {
@@ -1054,6 +1063,12 @@ h1, h2, h3, h4, h5, h6 {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 1.5rem;
+}
+
+.similar-products-section {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
 }
 
 /* Product Card Styles */
@@ -1624,17 +1639,95 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .search-wrapper {
+  position: relative;
   width: 100%;
   margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .search-input {
   width: 100%;
+  max-width: 480px;
   padding: 0.75rem 1rem;
   border-radius: 9999px;
   background: rgba(15, 23, 42, 0.7);
   border: 1px solid rgba(148, 163, 184, 0.3);
   color: #e2e8f0;
+}
+
+.search-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.search-method-select {
+  height: 2.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: rgba(15, 23, 42, 0.8);
+  color: #e2e8f0;
+  padding: 0 0.75rem;
+  font-size: 0.85rem;
+}
+
+.search-method-select:focus {
+  outline: none;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.8);
+}
+
+.autocomplete-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.25rem;
+  width: 100%;
+  max-width: 480px;
+  background: rgba(15, 23, 42, 0.98);
+  border-radius: 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.9);
+  overflow: hidden;
+  z-index: 40;
+}
+
+.autocomplete-item {
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: #e2e8f0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.autocomplete-item:hover {
+  background: rgba(51, 65, 85, 0.95);
+}
+
+.spec-search-explanation {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), rgba(15, 23, 42, 0.9));
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  color: #e2e8f0;
+  max-width: 720px;
+}
+
+.spec-search-explanation h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.spec-search-explanation p {
+  font-size: 0.8rem;
+  color: #cbd5f5;
 }
 
 /* Stock Info */
