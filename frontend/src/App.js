@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -49,6 +49,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
+// URL-ul backend-ului. În development folosește explicit localhost:8000 ca să nu depindem de proxy.
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
 const API = `${BACKEND_URL}/api`;
 const PROFILE_OVERRIDES_KEY = "userProfileOverrides";
@@ -894,7 +895,9 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [specSearchTerm, setSpecSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
+  const [specSearchResults, setSpecSearchResults] = useState([]);
   const [searchMethod, setSearchMethod] = useState("bm25");
   const [searchOrder, setSearchOrder] = useState("desc");
   const [autocompleteOptions, setAutocompleteOptions] = useState([]);
@@ -915,6 +918,8 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
     email: "",
     payment_method: "card"
   });
+  const [activeTab, setActiveTab] = useState("recommendations");
+  const liveSearchTimeout = useRef(null);
 
   useEffect(() => {
     fetchDashboardData();
@@ -1010,10 +1015,11 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
     fetchProductsByCategory(category);
   };
 
-  const performSearch = async (term, { specs = false } = {}) => {
+  const performSearch = async (term, { specs = false, silent = false } = {}) => {
     const query = term.trim();
     if (!query) {
-      setSearchResults([]);
+      if (specs) setSpecSearchResults([]);
+      else setSearchResults([]);
       return;
     }
     try {
@@ -1025,10 +1031,20 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
           order: searchOrder,
         },
       });
-      setSearchResults(response.data);
+      if (specs) setSpecSearchResults(response.data);
+      else setSearchResults(response.data);
     } catch (error) {
-      console.error("Search error:", error);
-      toast.error("Nu am putut executa căutarea");
+      if (specs) setSpecSearchResults([]);
+      else setSearchResults([]);
+      if (!silent) {
+        console.error("Search error:", error);
+        const isNetwork = !error.response || error.code === "ECONNREFUSED" || error.code === "ERR_NETWORK";
+        toast.error(
+          isNetwork
+            ? "Serviciul de căutare nu răspunde. Pornește backend-ul (port 8000) și reîncearcă."
+            : "Nu am putut executa căutarea."
+        );
+      }
     }
   };
 
@@ -1051,6 +1067,16 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
       setAutocompleteOptions(response.data);
     } catch (error) {
       console.error("Autocomplete error:", error);
+    }
+
+    // Live search în tab-ul "Toate Produsele" pe măsură ce utilizatorul tastează (fără toast la eroare)
+    if (activeTab === "all") {
+      if (liveSearchTimeout.current) {
+        clearTimeout(liveSearchTimeout.current);
+      }
+      liveSearchTimeout.current = setTimeout(() => {
+        performSearch(query, { specs: false, silent: true });
+      }, 250);
     }
   };
 
@@ -1416,7 +1442,7 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
       </header>
 
       <main className="dashboard-main">
-        <Tabs defaultValue="recommendations" className="dashboard-tabs">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="dashboard-tabs">
           <TabsList className="tabs-list">
             <TabsTrigger value="recommendations" data-testid="recommendations-tab">Pentru Tine</TabsTrigger>
             <TabsTrigger value="all" data-testid="all-products-tab">Toate Produsele</TabsTrigger>
@@ -1597,10 +1623,10 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
                   Căutare full‑text în specificațiile tehnice (ex: rezoluție, procesor, dimensiune ecran) folosind scor Lucene‑style (TF‑IDF / BM25).
                 </p>
               </div>
-              <form className="search-wrapper" onSubmit={(e) => { e.preventDefault(); performSearch(searchTerm || "", { specs: true }); }}>
+              <form className="search-wrapper" onSubmit={(e) => { e.preventDefault(); performSearch(specSearchTerm || "", { specs: true }); }}>
                 <Input
-                  value={searchTerm}
-                  onChange={handleSearchChange}
+                  value={specSearchTerm}
+                  onChange={(e) => setSpecSearchTerm(e.target.value)}
                   placeholder="Ex: 1900x1200, RTX 4090, 32GB RAM..."
                   className="search-input"
                 />
@@ -1635,12 +1661,12 @@ const Dashboard = ({ user, onLogout, cart, setCart }) => {
                 </p>
               </div>
               <div className="products-grid" data-testid="spec-products-grid">
-                {searchResults.length === 0 ? (
+                {specSearchResults.length === 0 ? (
                   <div className="empty-state">
                     Introdu o interogare pentru a vedea produse relevante după fișa tehnică.
                   </div>
                 ) : (
-                  searchResults.map((product) => (
+                  specSearchResults.map((product) => (
                     <ProductCard
                       key={product.id}
                       product={product}

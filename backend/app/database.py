@@ -44,13 +44,12 @@ def get_supabase_client() -> Optional[Client]:
                 logger.warning(f"Failed to connect to Supabase: {e}")
                 _supabase = None
         else:
-            logger.warning("Supabase credentials not found, using in-memory storage")
+            logger.debug("Supabase credentials not found, using in-memory storage")
             _supabase = None
     return _supabase
 
 
-# Initialize connection
-get_supabase_client()
+# Clientul se creează la primul request, când .env e încărcat (nu la import).
 
 
 # Database helper functions

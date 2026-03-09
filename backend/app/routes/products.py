@@ -1,4 +1,5 @@
 """Product routes."""
+import logging
 import uuid
 from typing import Dict, List, Optional, Tuple
 
@@ -18,6 +19,7 @@ from app.search_engine import SearchResult, build_product_index, build_spec_inde
 from app.utils import get_products_list
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 async def verify_admin(user_id: str = Header(..., alias="X-User-Id")):
@@ -72,75 +74,6 @@ async def get_products(
     return normalized
 
 
-@router.get("/products/{product_id}", response_model=Product)
-async def get_product(product_id: str):
-    product_data = await get_product_by_id_from_db(product_id)
-
-    if not product_data:
-        products = get_products_list()
-        product_data = next((p for p in products if p["id"] == product_id), None)
-
-    if not product_data:
-        raise HTTPException(status_code=404, detail="Product not found")
-
-    ensure_product_tags(product_data)
-    return Product(**product_data)
-
-
-@router.post("/products", response_model=Product)
-async def create_product(product: ProductCreate, admin: dict = Depends(verify_admin)):
-    """Create a new product (admin only) - salvează în Supabase."""
-    new_product = {
-        "id": str(uuid.uuid4()),
-        "name": product.name,
-        "category": product.category,
-        "brand": product.brand,
-        "price": product.price,
-        "description": product.description,
-        "image_url": product.image_url,
-        "specs": product.specs,
-        "stock": product.stock,
-        "supplier": product.supplier,
-        "delivery_method": product.delivery_method,
-        "tags": product.tags or [product.category],
-    }
-    new_product["is_active"] = product.is_active if product.stock > 0 else False
-    refresh_product_status(new_product)
-    ensure_product_tags(new_product)
-
-    # Salvează în Supabase
-    created_product = await create_product_in_db(new_product)
-    return Product(**created_product)
-
-
-@router.put("/products/{product_id}", response_model=Product)
-async def update_product(
-    product_id: str, product_update: ProductUpdate, admin: dict = Depends(verify_admin)
-):
-    """Update a product (admin only)."""
-    existing_product = await get_product_by_id_from_db(product_id)
-
-    if not existing_product:
-        raise HTTPException(status_code=404, detail="Product not found")
-
-    update_data = product_update.model_dump(exclude_unset=True)
-    if "price" in update_data:
-        update_data["price"] = float(update_data["price"])
-    existing_product.update(update_data)
-    refresh_product_status(existing_product)
-    ensure_product_tags(existing_product)
-
-    updated_product = await update_product_in_db(product_id, existing_product)
-    return Product(**updated_product)
-
-
-@router.delete("/products/{product_id}")
-async def delete_product(product_id: str, admin: dict = Depends(verify_admin)):
-    """Delete a product (admin only)."""
-    await delete_product_from_db(product_id)
-    return {"message": "Product deleted successfully"}
-
-
 @router.get("/categories", response_model=List[str])
 async def get_categories(active_only: bool = True):
     """Get all product categories."""
@@ -169,31 +102,36 @@ async def search_products(
     """Full-text search în colecția de produse folosind TF-IDF sau BM25.
 
     Produsele sunt ordonate descrescător după scorul Lucene-style.
+    În caz de eroare internă, returnăm o listă goală în loc de 500,
+    pentru a nu rupe UI-ul.
     """
     products = await _get_all_products_for_ir(active_only=active_only)
     if not products:
         return []
 
-    index = build_product_index(products)
-    if method == "tfidf":
-        results: List[SearchResult] = index.search_tfidf(q, top_k=len(products))
-    else:
-        results = index.search_bm25(q, top_k=len(products))
+    try:
+        index = build_product_index(products)
+        if method == "tfidf":
+            results: List[SearchResult] = index.search_tfidf(q, top_k=len(products))
+        else:
+            results = index.search_bm25(q, top_k=len(products))
 
-    score_by_id = {r.product_id: r.score for r in results}
+        score_by_id = {r.product_id: r.score for r in results}
+        reverse = order == "desc"
 
-    reverse = order == "desc"
-
-    ordered_products = [
-        Product(**p)
-        for p in sorted(
-            products,
-            key=lambda prod: score_by_id.get(prod["id"], 0.0),
-            reverse=reverse,
-        )
-        if score_by_id.get(p["id"], 0.0) > 0.0
-    ]
-    return ordered_products
+        ordered_products = [
+            Product(**p)
+            for p in sorted(
+                products,
+                key=lambda prod: score_by_id.get(prod["id"], 0.0),
+                reverse=reverse,
+            )
+            if score_by_id.get(p["id"], 0.0) > 0.0
+        ]
+        return ordered_products
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.error("Search error in /products/search", exc_info=exc)
+        return []
 
 
 @router.get("/products/autocomplete", response_model=List[str])
@@ -321,6 +259,75 @@ async def get_similar_products(
     return similar_products
 
 
+@router.get("/products/{product_id}", response_model=Product)
+async def get_product(product_id: str):
+    product_data = await get_product_by_id_from_db(product_id)
+
+    if not product_data:
+        products = get_products_list()
+        product_data = next((p for p in products if p["id"] == product_id), None)
+
+    if not product_data:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    ensure_product_tags(product_data)
+    return Product(**product_data)
+
+
+@router.post("/products", response_model=Product)
+async def create_product(product: ProductCreate, admin: dict = Depends(verify_admin)):
+    """Create a new product (admin only) - salvează în Supabase."""
+    new_product = {
+        "id": str(uuid.uuid4()),
+        "name": product.name,
+        "category": product.category,
+        "brand": product.brand,
+        "price": product.price,
+        "description": product.description,
+        "image_url": product.image_url,
+        "specs": product.specs,
+        "stock": product.stock,
+        "supplier": product.supplier,
+        "delivery_method": product.delivery_method,
+        "tags": product.tags or [product.category],
+    }
+    new_product["is_active"] = product.is_active if product.stock > 0 else False
+    refresh_product_status(new_product)
+    ensure_product_tags(new_product)
+
+    # Salvează în Supabase
+    created_product = await create_product_in_db(new_product)
+    return Product(**created_product)
+
+
+@router.put("/products/{product_id}", response_model=Product)
+async def update_product(
+    product_id: str, product_update: ProductUpdate, admin: dict = Depends(verify_admin)
+):
+    """Update a product (admin only)."""
+    existing_product = await get_product_by_id_from_db(product_id)
+
+    if not existing_product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    update_data = product_update.model_dump(exclude_unset=True)
+    if "price" in update_data:
+        update_data["price"] = float(update_data["price"])
+    existing_product.update(update_data)
+    refresh_product_status(existing_product)
+    ensure_product_tags(existing_product)
+
+    updated_product = await update_product_in_db(product_id, existing_product)
+    return Product(**updated_product)
+
+
+@router.delete("/products/{product_id}")
+async def delete_product(product_id: str, admin: dict = Depends(verify_admin)):
+    """Delete a product (admin only)."""
+    await delete_product_from_db(product_id)
+    return {"message": "Product deleted successfully"}
+
+
 @router.get("/spec-search", response_model=List[Product])
 async def search_specifications(
     q: str = Query(..., min_length=1, description="Căutare full-text în fișele tehnice"),
@@ -337,30 +344,33 @@ async def search_specifications(
 ):
     """Căutare avansată în documentele de specificații folosind TF-IDF / BM25.
 
-    Indexul este construit peste câmpul `specs` + descrierea produsului.
+    Indexul este construit peste câmpul `specs` + titlul produsului + brand + descriere.
     Rezultatele sunt ordonate descrescător după scorul Lucene-style.
     """
     products = await _get_all_products_for_ir(active_only=True)
     if not products:
         return []
 
-    index = build_spec_index(products)
-    if method == "tfidf":
-        results: List[SearchResult] = index.search_tfidf(q, top_k=len(products))
-    else:
-        results = index.search_bm25(q, top_k=len(products))
+    try:
+        index = build_spec_index(products)
+        if method == "tfidf":
+            results: List[SearchResult] = index.search_tfidf(q, top_k=len(products))
+        else:
+            results = index.search_bm25(q, top_k=len(products))
 
-    score_by_id = {r.product_id: r.score for r in results}
+        score_by_id = {r.product_id: r.score for r in results}
+        reverse = order == "desc"
 
-    reverse = order == "desc"
-
-    ordered_products = [
-        Product(**p)
-        for p in sorted(
-            products,
-            key=lambda prod: score_by_id.get(prod["id"], 0.0),
-            reverse=reverse,
-        )
-        if score_by_id.get(p["id"], 0.0) > 0.0
-    ]
-    return ordered_products
+        ordered_products = [
+            Product(**p)
+            for p in sorted(
+                products,
+                key=lambda prod: score_by_id.get(prod["id"], 0.0),
+                reverse=reverse,
+            )
+            if score_by_id.get(p["id"], 0.0) > 0.0
+        ]
+        return ordered_products
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.error("Search error in /spec-search", exc_info=exc)
+        return []

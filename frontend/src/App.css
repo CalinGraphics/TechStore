@@ -1107,15 +1107,20 @@ h1, h2, h3, h4, h5, h6 {
 
 .product-image-container {
   width: 100%;
-  height: 200px;
+  height: 180px;
   overflow: hidden;
-  background: rgba(15, 23, 42, 0.4);
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
 }
 
 .product-image {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  mix-blend-mode: multiply;
   transition: transform 0.5s ease;
 }
 
@@ -1641,41 +1646,57 @@ h1, h2, h3, h4, h5, h6 {
 .search-wrapper {
   position: relative;
   width: 100%;
+  max-width: 720px;
   margin-bottom: 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.75rem;
 }
 
 .search-input {
   width: 100%;
-  max-width: 480px;
-  padding: 0.75rem 1rem;
+  padding: 0.7rem 1.1rem;
   border-radius: 9999px;
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.5);
   color: #e2e8f0;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.9);
 }
 
 .search-controls {
   display: flex;
   gap: 0.5rem;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .search-method-select {
   height: 2.25rem;
-  border-radius: 0.5rem;
+  min-width: 170px;
+  border-radius: 9999px;
   border: 1px solid rgba(148, 163, 184, 0.6);
-  background: rgba(15, 23, 42, 0.8);
+  background: radial-gradient(circle at top, rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.85));
   color: #e2e8f0;
-  padding: 0 0.75rem;
+  padding: 0 0.9rem;
   font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease;
 }
 
 .search-method-select:focus {
   outline: none;
-  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.8);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.45);
+  border-color: rgba(56, 189, 248, 0.9);
+}
+
+.search-method-select:hover {
+  border-color: rgba(56, 189, 248, 0.7);
+  background: radial-gradient(circle at top, rgba(15, 23, 42, 0.98), rgba(15, 23, 42, 0.9));
+}
+
+.search-method-select option {
+  background: #020617;
+  color: #e2e8f0;
 }
 
 .autocomplete-panel {
@@ -1716,7 +1737,7 @@ h1, h2, h3, h4, h5, h6 {
   background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), rgba(15, 23, 42, 0.9));
   border: 1px solid rgba(148, 163, 184, 0.4);
   color: #e2e8f0;
-  max-width: 720px;
+  width: 100%;
 }
 
 .spec-search-explanation h3 {

@@ -23,6 +23,14 @@ let healthPluginInstance;
 // Health check plugins disabled and removed
 
 const webpackConfig = {
+  devServer: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
+  },
   webpack: {
     alias: {
       '@': path.resolve(__dirname, 'src'),

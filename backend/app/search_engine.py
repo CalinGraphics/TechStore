@@ -52,6 +52,13 @@ def build_spec_text(product: dict) -> str:
     """Build a specification-focused document text for Lucene-style search."""
     specs = product.get("specs") or {}
     lines: List[str] = []
+    # Titlul și brandul ajută la interogări de tip "MacBook M3"
+    name = product.get("name")
+    brand = product.get("brand")
+    if name:
+        lines.append(str(name))
+    if brand:
+        lines.append(str(brand))
     if isinstance(specs, dict):
         for key, value in specs.items():
             lines.append(f"{key}: {value}")
